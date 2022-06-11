@@ -1,0 +1,13 @@
+{
+  "exclude": [".yarn", "dist"],
+  "compilerOptions": {
+    "checkJs": true,
+    "target":"ESNext",
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "node"
+  },
+  "typeAcquisition": {
+    "include": ["jasmine"]
+  }
+}

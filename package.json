@@ -1,3 +1,14 @@
 {
-  "packageManager": "yarn@3.2.1"
+  "name": "video-board",
+  "type": "module",
+  "scripts": {
+    "start": "web-dev-server --node-resolve --watch"
+  },
+  "packageManager": "yarn@3.2.1",
+  "devDependencies": {
+    "@web/dev-server": "^0.1.31"
+  },
+  "dependencies": {
+    "lit": "^2.2.5"
+  }
 }
