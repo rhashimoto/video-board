@@ -9,6 +9,7 @@
     "@web/dev-server": "^0.1.31"
   },
   "dependencies": {
+    "firebase": "^9.8.3",
     "lit": "^2.2.5"
   }
 }
