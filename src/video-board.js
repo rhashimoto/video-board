@@ -4,7 +4,7 @@ import { LitElement, css, html } from 'lit';
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithCredential, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getDatabase } from "firebase/database";
+import { getDatabase, ref, onChildAdded, remove } from "firebase/database";
 
 import { getAccessToken, getCredential } from './gapi.js';
 
@@ -20,30 +20,20 @@ const firebaseConfig = {
   measurementId: "G-V13R1N46M6"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const database = getDatabase(app);
-
 (async function() {
-  // Sign in to Firebase.
-  const googleCredential = GoogleAuthProvider.credential(await getCredential());
-  const userCredential = await signInWithCredential(getAuth(), googleCredential);
-  console.log('userCredential', userCredential);
+  const gapi = await getGAPI();
+  console.log('gapi loaded');
 
-  // const gapi = await getGAPI();
-  // console.log('gapi loaded');
-
-  // const result = await gCall(() => gapi.client.calendar.events.list({
-  //   'calendarId': 'primary',
-  //   'timeMin': (new Date()).toISOString(),
-  //   'showDeleted': false,
-  //   'singleEvents': true,
-  //   'maxResults': 10,
-  //   'orderBy': 'startTime',
-  // }));
-  // console.log(new Date(), result);
-})();
+  const result = await gCall(() => gapi.client.calendar.events.list({
+    'calendarId': 'primary',
+    'timeMin': (new Date()).toISOString(),
+    'showDeleted': false,
+    'singleEvents': true,
+    'maxResults': 10,
+    'orderBy': 'startTime',
+  }));
+  console.log(new Date(), result);
+});
 
 class VideoBoard extends LitElement {
   static properties = {
@@ -52,6 +42,25 @@ class VideoBoard extends LitElement {
 
   constructor() {
     super();
+    this.ready = this.initialize();
+  }
+
+  async initialize() {
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    this.auth = getAuth();
+    this.database = getDatabase(app);
+
+    // Sign in to Firebase.
+    const userCredential = await signInWithCredential(
+      this.auth,
+      GoogleAuthProvider.credential(await getCredential()));
+
+    const offersRef = ref(this.database, `clients/${this.auth.currentUser.uid}/offers`);
+    onChildAdded(offersRef, child => {
+      console.log('offer', child.key, child.val());
+      remove(child.ref);
+    });
   }
 
   static get styles() {

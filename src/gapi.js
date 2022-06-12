@@ -1,7 +1,6 @@
 import { ScrambleStore } from "./ScrambleStore";
 
 const DEFAULT_VALID_MILLIS = 30_000;
-const TOKEN_KEY = 'VIDEO_BOARD_TOKEN';
 
 // Use a script element with type "application/json" to enclose a JSON
 // object.
@@ -11,6 +10,8 @@ const {
   GOOGLE_GAPI_LIBRARIES, // colon-delimited string
   GOOGLE_SCOPES          // array of scopes
 } = JSON.parse(document.getElementById('google-config')?.textContent ?? '{}');
+
+const TOKEN_KEY = `${GOOGLE_CLIENT_ID}:GOOGLE_ACCESS_TOKEN`;
 
 // Obfuscated store for access token.
 const tokenStore = new ScrambleStore(GOOGLE_CLIENT_ID);
