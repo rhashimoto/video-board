@@ -4,9 +4,12 @@ import { LitElement, css, html } from 'lit';
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithCredential, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getDatabase, ref, onChildAdded, remove } from "firebase/database";
+import { getDatabase, onChildAdded, push, ref, remove } from "firebase/database";
 
 import { getAccessToken, getCredential } from './gapi.js';
+
+const MESSAGE_EXPIRATION_MILLIS = 60_000;
+const MEDIA_CONSTRAINTS = { audio: true, video: { facingMode: "user" } };
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -36,6 +39,9 @@ const firebaseConfig = {
 });
 
 class VideoBoard extends LitElement {
+  instanceId = Math.random().toString(36).replace('0.', '');
+  clientUIDs = new Set();
+
   static properties = {
     example: { attribute: null }
   }
@@ -48,25 +54,55 @@ class VideoBoard extends LitElement {
   async initialize() {
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    this.auth = getAuth();
     this.database = getDatabase(app);
 
     // Sign in to Firebase.
-    const userCredential = await signInWithCredential(
-      this.auth,
+    const auth = getAuth();
+    await signInWithCredential(
+      auth,
       GoogleAuthProvider.credential(await getCredential()));
+    this.uid = auth.currentUser.uid;
 
-    const offersRef = ref(this.database, `clients/${this.auth.currentUser.uid}/offers`);
-    onChildAdded(offersRef, child => {
-      console.log('offer', child.key, child.val());
-      remove(child.ref);
+    const inbox = ref(this.database, `clients/${this.uid}/in`);
+    onChildAdded(inbox, snapshot => this.handleMessage(snapshot));
+  }
+
+  handleMessage(snapshot) {
+    const message = snapshot.val();
+    if (message.dst !== this.uid && message.dst !== this.instanceId) return;
+    try {
+      if (message.timestamp > Date.now() - MESSAGE_EXPIRATION_MILLIS) {
+        // TODO: dispatch message
+        console.log('message', message);
+      }
+    } finally {
+      remove(snapshot.ref);
+    }
+  }
+
+  _call() {
+    // Post offer to destination inbox.
+    const dst = this.shadowRoot.getElementById('target').value;
+    const inbox = ref(this.database, `clients/${dst}/in`);
+    push(inbox, {
+      src: this.instanceId,
+      dst,
+      timestamp: Date.now(),
+      data: 'how now brown cow'
     });
+
+    // Listen for responses.
+    if (!this.clientUIDs.has(dst)) {
+      const outbox = ref(this.database, `clients/${dst}/out`);
+      onChildAdded(outbox, snapshot => this.handleMessage(snapshot));
+      this.clientUIDs.add(dst);
+    }
   }
 
   static get styles() {
     return css`
       :host {
-        display: flex;
+        display: block;
       }
     `;
   }
@@ -74,6 +110,8 @@ class VideoBoard extends LitElement {
   render() {
     return html`
       <h1>Hello VideoBoard</h1>
+      <input id="target" value="rJKmGm9VjuXjmiTuLi9Wcj7TOtt2">
+      <button id="call" @click=${this._call}>Call</button>
     `;
   }
 }
