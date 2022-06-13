@@ -7,6 +7,7 @@ import { getAnalytics } from "firebase/analytics";
 import { getDatabase, onChildAdded, push, ref, remove } from "firebase/database";
 
 import { getAccessToken, getCredential } from './gapi.js';
+import { PeerConnection } from './PeerConnection.js';
 
 const MESSAGE_EXPIRATION_MILLIS = 60_000;
 const MEDIA_CONSTRAINTS = { audio: true, video: { facingMode: "user" } };
@@ -114,7 +115,8 @@ class VideoBoard extends LitElement {
         if (message.offer) {
           const outbox = ref(this.database, `clients/${this.uid}/out`);
 
-          this.peerConnection = await this.#createPeerConnection();
+          this.peerConnection = new PeerConnection(RTC_CONFIG);
+          await this.peerConnection.addMediaStream(MEDIA_CONSTRAINTS);
           this.peerConnection.onicecandidate = ({candidate}) => {
             if (candidate) {
               push(outbox, {
@@ -139,17 +141,10 @@ class VideoBoard extends LitElement {
             answer: answer.toJSON()
           });
 
-          const dataChannel = this.peerConnection.createDataChannel('chat', {
-            negotiated: true,
-            id: RTC_DATA_CHANNEL_ID
+          this.peerConnection.addEventListener('data', ({detail}) => {
+            console.log('chat', detail);
           });
-          dataChannel.onmessage = ({data}) => {
-            console.log('chat', data);
-          };
-          await new Promise(resolve => {
-            dataChannel.addEventListener('open', resolve, { once: true });
-          });
-          dataChannel.send('from answerer');
+          this.peerConnection.send('from answerer');
         } else if (message.candidate) {
           this.peerConnection.addIceCandidate(message.candidate);
         }
@@ -159,32 +154,12 @@ class VideoBoard extends LitElement {
     }
   }
 
-  async #createPeerConnection() {
-    const peerConnection = new RTCPeerConnection(RTC_CONFIG);
-
-    const mediaStream = await navigator.mediaDevices.getUserMedia(MEDIA_CONSTRAINTS);
-    for (const track of mediaStream.getTracks()) {
-      peerConnection.addTrack(track, mediaStream);
-    }
-    return peerConnection;
-  }
-
   async _call() {
     const contextId = Math.random().toString(36).replace('0.', '');
     const clientId = this.shadowRoot.getElementById('target').value;
 
-    const peerConnection = await this.#createPeerConnection();
-    peerConnection.onnegotiationneeded = async () => {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      const inbox = ref(this.database, `clients/${clientId}/in`);
-      push(inbox, {
-        timestamp: Date.now(),
-        contextId,
-        offer: offer.toJSON()
-      })
-    };
+    const peerConnection = new PeerConnection(RTC_CONFIG);
+    await peerConnection.addMediaStream(MEDIA_CONSTRAINTS);
     peerConnection.onicecandidate = ({candidate}) => {
       if (candidate) {
         const inbox = ref(this.database, `clients/${clientId}/in`);
@@ -206,6 +181,17 @@ class VideoBoard extends LitElement {
       }
     };
 
+    // Make offer.
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    const inbox = ref(this.database, `clients/${clientId}/in`);
+    push(inbox, {
+      timestamp: Date.now(),
+      contextId,
+      offer: offer.toJSON()
+    })
+
     // Listen for answer.
     const outbox = ref(this.database, `clients/${clientId}/out`);
     const closeSignaling = onChildAdded(outbox, async (snapshot) => {
@@ -226,17 +212,10 @@ class VideoBoard extends LitElement {
       }
     };
 
-    const dataChannel = peerConnection.createDataChannel('chat', {
-      negotiated: true,
-      id: RTC_DATA_CHANNEL_ID
+    peerConnection.addEventListener('data', ({detail}) => {
+      console.log('chat', detail);
     });
-    dataChannel.onmessage = ({data}) => {
-      console.log('chat', data);
-    };
-    await new Promise(resolve => {
-      dataChannel.addEventListener('open', resolve, { once: true });
-    });
-    dataChannel.send('from offerer');
+    peerConnection.send('from offerer');
   }
 
   static get styles() {
