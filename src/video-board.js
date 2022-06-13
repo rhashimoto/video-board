@@ -1,12 +1,7 @@
 import { LitElement, css, html } from 'lit';
+import { onChildAdded, push, ref, remove } from "firebase/database";
 
-// https://firebase.google.com/docs/web/setup#available-libraries
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCredential, GoogleAuthProvider } from "firebase/auth";
-import { getAnalytics } from "firebase/analytics";
-import { getDatabase, onChildAdded, push, ref, remove } from "firebase/database";
-
-import { getAccessToken, getCredential } from './gapi.js';
+import { getFirebaseDatabase, getFirebaseUid } from './firebase.js';
 import { PeerConnection } from './PeerConnection.js';
 
 const MESSAGE_EXPIRATION_MILLIS = 60_000;
@@ -48,34 +43,6 @@ const RTC_CONFIG = {
     },
   ]
 };
-const RTC_DATA_CHANNEL_ID = 0;
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyASXeGyZygO7d_j_wfR6NiE-Fk49pG1uoQ",
-  authDomain: "shoestring-videoboard.firebaseapp.com",
-  projectId: "shoestring-videoboard",
-  storageBucket: "shoestring-videoboard.appspot.com",
-  messagingSenderId: "104957196093",
-  appId: "1:104957196093:web:806779aabe41c1fee07754",
-  measurementId: "G-V13R1N46M6"
-};
-
-(async function() {
-  const gapi = await getGAPI();
-  console.log('gapi loaded');
-
-  const result = await gCall(() => gapi.client.calendar.events.list({
-    'calendarId': 'primary',
-    'timeMin': (new Date()).toISOString(),
-    'showDeleted': false,
-    'singleEvents': true,
-    'maxResults': 10,
-    'orderBy': 'startTime',
-  }));
-  console.log(new Date(), result);
-});
 
 class VideoBoard extends LitElement {
 
@@ -89,17 +56,8 @@ class VideoBoard extends LitElement {
   }
 
   async initialize() {
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    this.database = getDatabase(app);
-
-    // Sign in to Firebase.
-    const auth = getAuth();
-    await signInWithCredential(
-      auth,
-      GoogleAuthProvider.credential(await getCredential()));
-    this.uid = auth.currentUser.uid;
-
+    this.uid = await getFirebaseUid();
+    this.database = await getFirebaseDatabase();
     const inbox = ref(this.database, `clients/${this.uid}/in`);
     let inboxChain = Promise.resolve();
     onChildAdded(inbox, snapshot => {
