@@ -47,6 +47,7 @@ const RTC_CONFIG = {
     },
   ]
 };
+const RTC_DATA_CHANNEL_ID = 0;
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -137,6 +138,18 @@ class VideoBoard extends LitElement {
             contextId: message.contextId,
             answer: answer.toJSON()
           });
+
+          const dataChannel = this.peerConnection.createDataChannel('chat', {
+            negotiated: true,
+            id: RTC_DATA_CHANNEL_ID
+          });
+          dataChannel.onmessage = ({data}) => {
+            console.log('chat', data);
+          };
+          await new Promise(resolve => {
+            dataChannel.addEventListener('open', resolve, { once: true });
+          });
+          dataChannel.send('from answerer');
         } else if (message.candidate) {
           this.peerConnection.addIceCandidate(message.candidate);
         }
@@ -212,6 +225,18 @@ class VideoBoard extends LitElement {
         closeSignaling();
       }
     };
+
+    const dataChannel = peerConnection.createDataChannel('chat', {
+      negotiated: true,
+      id: RTC_DATA_CHANNEL_ID
+    });
+    dataChannel.onmessage = ({data}) => {
+      console.log('chat', data);
+    };
+    await new Promise(resolve => {
+      dataChannel.addEventListener('open', resolve, { once: true });
+    });
+    dataChannel.send('from offerer');
   }
 
   static get styles() {
