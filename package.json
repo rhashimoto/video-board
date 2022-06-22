@@ -2,7 +2,7 @@
   "name": "video-board",
   "type": "module",
   "scripts": {
-    "start": "web-dev-server --node-resolve --watch"
+    "start": "web-dev-server"
   },
   "packageManager": "yarn@3.2.1",
   "devDependencies": {
