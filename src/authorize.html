@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Authorize VideoBoard</title>
+  <script id="google-config" type="application/json">
+    {
+      "GOOGLE_APP_ID": "104957196093",
+      "GOOGLE_CLIENT_ID": "104957196093-fc9it0e7vteflecd2lvmt5mokeq94k1r.apps.googleusercontent.com",
+      "GOOGLE_DISCOVERY_DOCS": [
+        "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+        "https://photoslibrary.googleapis.com/$discovery/rest?version=v1"
+      ],
+      "GOOGLE_GAPI_LIBRARIES": "client",
+      "GOOGLE_SCOPES": [
+        "https://www.googleapis.com/auth/calendar.events"
+      ]
+    }
+  </script>
+</head>
+<body>
+  <div>
+    <button id="authorize">Get authorization code</button>
+  </div>
+  <div>
+    <form method="post" action="https://oauth2.googleapis.com/token">
+      Enter <a href="https://console.cloud.google.com/apis/credentials?project=shoestring-videoboard" target="_blank">OAuth2 client secret</a>
+      <input type="hidden" name="client_id">
+      <input name="client_secret">
+      <input type="hidden" name="code">
+      <input type="hidden" name="grant_type" value="authorization_code">
+      <input type="hidden" name="redirect_uri">
+      <input type="submit" value="Get tokens">
+    </form>
+  </div>
+  <hr>
+  <pre id="params"></pre>
+  <script>
+    const {
+      GOOGLE_CLIENT_ID,
+      GOOGLE_SCOPES          // array of scopes
+    } = JSON.parse(document.getElementById('google-config')?.textContent ?? '{}');
+
+    document.getElementById('params').textContent = JSON.stringify(
+      Object.fromEntries(new URL(window.location).searchParams.entries()),
+      null,
+      2);
+
+    document.getElementById('authorize').addEventListener('click', function() {
+      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+      url.searchParams.set('redirect_uri', window.location.origin + window.location.pathname);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('scope', GOOGLE_SCOPES.join(' '));
+      url.searchParams.set('access_type', 'offline');
+      window.location.assign(url);
+    });
+
+    document.querySelector('input[name=client_id]').value = GOOGLE_CLIENT_ID;
+    document.querySelector('input[name=code]').value = new URLSearchParams(window.location.search).get('code');
+    document.querySelector('input[name=redirect_uri]').value = window.location.origin + window.location.pathname;
+
+    // document.getElementById('exchange').addEventListener('click', async function() {
+    //   // const url = new URL('https://oauth2.googleapis.com/token');
+    //   // url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+    //   // url.searchParams.set('client_secret', document.getElementById('client_secret').value);
+    //   // url.searchParams.set('code', new URLSearchParams(window.location.search).get('code'));
+    //   // url.searchParams.set('grant_type', 'authorization_code');
+    //   // url.searchParams.set('redirect_uri', window.location.origin + window.location.pathname);
+    //   // window.location.assign(url);
+    //   const result = await fetch('https://oauth2.googleapis.com/token', {
+    //     method: 'post',
+    //     headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    //     body: new URLSearchParams({
+    //       client_id: GOOGLE_CLIENT_ID,
+    //       client_secret: document.getElementById('client_secret').value,
+    //       code: new URLSearchParams(window.location.search).get('code'),
+    //       grant_type: 'authorization_code'
+    //     })
+    //   }).then(response => response.text());
+    //   console.log(result);
+    // });
+  </script>
+</body>
+</html>
