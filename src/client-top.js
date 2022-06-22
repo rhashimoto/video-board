@@ -1,7 +1,6 @@
 import { css, html, LitElement } from 'lit';
 
-// TODO: remove
-import './gapi.js';
+import './client-calendar.js';
 
 class ClientTop extends LitElement {
   static properties = {
@@ -46,7 +45,9 @@ class ClientTop extends LitElement {
         <span>${this.date}</span>
         <span>${this.time}</span>
       </div>
-      <div id="container"></div>
+      <div id="container">
+        <client-calendar></client-calendar>
+      </div>
     `;
   }
 }

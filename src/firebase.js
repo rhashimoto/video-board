@@ -2,9 +2,13 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithCredential, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getDatabase } from "firebase/database";
+import { getDatabase, get, ref } from "firebase/database";
 
-import { getCredential } from './gapi.js';
+import { getCredential, setTokenProvider } from './gapi.js';
+
+const {
+  GOOGLE_CLIENT_ID,
+} = JSON.parse(document.getElementById('google-config')?.textContent ?? '{}');
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -47,3 +51,20 @@ export async function getFirebaseDatabase() {
   const app = await getFirebaseApp();
   return getDatabase(app);
 }
+
+setTokenProvider(async function() {
+  const uid = await getFirebaseUid();
+  const database = await getFirebaseDatabase();
+  const snapshot = await get(ref(database, `/clients/${uid}/config`));
+  const { refresh, secret } = snapshot.val();
+  const result = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: secret,
+      grant_type: 'refresh_token',
+      refresh_token: refresh
+    })
+  }).then(response => response.json());
+  return result.access_token;
+});
