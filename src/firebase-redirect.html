@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>title</title>
+  <script id="google-config" type="application/json">
+    {
+      "GOOGLE_APP_ID": "104957196093",
+      "GOOGLE_CLIENT_ID": "104957196093-fc9it0e7vteflecd2lvmt5mokeq94k1r.apps.googleusercontent.com",
+      "GOOGLE_DISCOVERY_DOCS": [
+        "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+        "https://photoslibrary.googleapis.com/$discovery/rest?version=v1"
+      ],
+      "GOOGLE_GAPI_LIBRARIES": "client",
+      "GOOGLE_SCOPES": [
+        "https://www.googleapis.com/auth/calendar.events"
+      ]
+    }
+  </script>
+</head>
+<body>
+  <button id="sign-in">Sign In</button>
+  <script type="module">
+    import { initializeApp } from "firebase/app";
+    import { getAuth, getRedirectResult, onAuthStateChanged, signInWithRedirect, GoogleAuthProvider } from "firebase/auth";
+
+    const {
+      GOOGLE_CLIENT_ID,
+    } = JSON.parse(document.getElementById('google-config')?.textContent ?? '{}');
+
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyASXeGyZygO7d_j_wfR6NiE-Fk49pG1uoQ",
+      authDomain: "shoestring-videoboard.firebaseapp.com",
+      projectId: "shoestring-videoboard",
+      storageBucket: "shoestring-videoboard.appspot.com",
+      messagingSenderId: "104957196093",
+      appId: "1:104957196093:web:806779aabe41c1fee07754",
+      measurementId: "G-V13R1N46M6"
+    };
+
+    (async function() {
+      const app = initializeApp(FIREBASE_CONFIG);
+      const auth = getAuth();
+
+      onAuthStateChanged(auth, function(user) {
+        console.log('onAuthStateChanged', user);
+      });
+
+      const authResult = await getRedirectResult(auth);
+      console.log('authResult', authResult);
+      if (authResult) {
+        // console.log('auth', auth);
+      } else {
+        // Start a sign in process for an unauthenticated user.
+        const provider = new GoogleAuthProvider();
+        provider.addScope('profile');
+        provider.addScope('email');
+        signInWithRedirect(auth, provider);
+      }
+    })();
+  </script>
+</body>
+</html>
