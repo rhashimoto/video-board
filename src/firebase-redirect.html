@@ -19,10 +19,11 @@
   </script>
 </head>
 <body>
-  <button id="sign-in">Sign In</button>
+  Firebase sign-in sample using redirect.
   <script type="module">
     import { initializeApp } from "firebase/app";
     import { getAuth, getRedirectResult, onAuthStateChanged, signInWithRedirect, GoogleAuthProvider } from "firebase/auth";
+    import { getDatabase, get, ref } from "firebase/database";
 
     const {
       GOOGLE_CLIENT_ID,
@@ -43,20 +44,22 @@
       const auth = getAuth();
 
       onAuthStateChanged(auth, function(user) {
-        console.log('onAuthStateChanged', user);
-      });
+        if (user) {
+          console.log(user);
 
-      const authResult = await getRedirectResult(auth);
-      console.log('authResult', authResult);
-      if (authResult) {
-        // console.log('auth', auth);
-      } else {
-        // Start a sign in process for an unauthenticated user.
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
-        signInWithRedirect(auth, provider);
-      }
+          // Verify database is accessible.
+          const database = getDatabase();
+          get(ref(database, `/clients/rJKmGm9VjuXjmiTuLi9Wcj7TOtt2/config`)).then(snapshot => {
+            console.log(snapshot.val());
+          });
+        } else {
+          // Start a sign in process for an unauthenticated user.
+          const provider = new GoogleAuthProvider();
+          provider.addScope('profile');
+          provider.addScope('email');
+          signInWithRedirect(auth, provider);
+        }
+      });
     })();
   </script>
 </body>

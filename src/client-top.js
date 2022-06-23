@@ -31,6 +31,7 @@ class ClientTop extends LitElement {
       #bar {
         display: flex;
         justify-content: space-between;
+        font-size: 20pt;
       }
 
       #container {

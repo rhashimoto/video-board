@@ -1,10 +1,10 @@
 // https://firebase.google.com/docs/web/setup#available-libraries
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCredential, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getDatabase, get, ref } from "firebase/database";
 
-import { getCredential, setTokenProvider } from './gapi.js';
+import { setTokenProvider } from './gapi.js';
 
 const {
   GOOGLE_CLIENT_ID,
@@ -12,7 +12,7 @@ const {
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const FIREBASE_CONFIG = {
+const app = initializeApp({
   apiKey: "AIzaSyASXeGyZygO7d_j_wfR6NiE-Fk49pG1uoQ",
   authDomain: "shoestring-videoboard.firebaseapp.com",
   projectId: "shoestring-videoboard",
@@ -20,43 +20,61 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "104957196093",
   appId: "1:104957196093:web:806779aabe41c1fee07754",
   measurementId: "G-V13R1N46M6"
-};
+});
 
-export const getFirebaseApp = (function() {
-  const app = initializeApp(FIREBASE_CONFIG);
-  const signedIn = Promise.resolve().then(async function() {
-    await signInWithCredential(
-      getAuth(),
-      GoogleAuthProvider.credential(await getCredential()));
-    return app;
+const userReady = new Promise(function(resolve) {
+  const auth = getAuth(app);
+  onAuthStateChanged(auth, function(user) {
+    if (user) {
+      resolve?.(user);
+      resolve = null;
+    } else {
+      // Start a sign in process for an unauthenticated user.
+      // It is allowed to add Google API scopes to call Google APIs with
+      // the resulting access token, but there doesn't seem to be a
+      // mechanism to refresh the token.
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      signInWithRedirect(auth, provider);
+    }
   });
+});
 
-  return function() {
-    return signedIn;
-  };
-})();
+export async function getFirebaseApp() {
+  await userReady;
+  return app;
+}
 
 export async function getFirebaseUid() {
-  await getFirebaseApp();
-  const auth = getAuth();
-  return auth.currentUser.uid;
+  const user = await userReady;
+  return user.uid;
 }
 
+const gAnalytics = getAnalytics(app);
 export async function getFirebaseAnalytics() {
-  const app = await getFirebaseApp();
-  return getAnalytics(app);
+  await userReady;
+  return gAnalytics;
 }
 
+const gDatabase = getDatabase(app);
 export async function getFirebaseDatabase() {
-  const app = await getFirebaseApp();
-  return getDatabase(app);
+  await userReady;
+  return gDatabase;
 }
 
+async function queryDatabase(path) {
+  const database = await getFirebaseDatabase();
+  const query = ref(database, path);
+  const snapshot = await get(query);
+  return snapshot.val();
+}
+
+// Install the Google API access token provider.
 setTokenProvider(async function() {
   const uid = await getFirebaseUid();
-  const database = await getFirebaseDatabase();
-  const snapshot = await get(ref(database, `/clients/${uid}/config`));
-  const { refresh, secret } = snapshot.val();
+  const secret = await queryDatabase(`/config/secret`);
+  const refresh = await queryDatabase(`/clients/${uid}/config/refresh`);
   const result = await fetch('https://oauth2.googleapis.com/token', {
     method: 'post',
     body: new URLSearchParams({
