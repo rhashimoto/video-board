@@ -24,6 +24,7 @@ class ClientTop extends LitElement {
       :host {
         display: flex;
         flex-direction: column;
+        gap: 10px;
         width: 100%;
         height: 100%;
       }
@@ -31,7 +32,7 @@ class ClientTop extends LitElement {
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: 20pt;
+        font-size: 24pt;
       }
 
       #container {

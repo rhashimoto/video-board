@@ -23,6 +23,33 @@ class ClientCalendar extends LitElement {
     this.#fetchEvents()
   }
 
+  _buildDateTimeString(timestamp) {
+    // Build the default date representation.
+    const ts = timestamp.dateTime ?
+      new Date(timestamp.dateTime) :
+      new Date(timestamp.date + 'T00:00');
+
+    let s = ts.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Replace with 'Today' or 'Tomorrow' if appropriate.
+    const todayEpochMillis = new Date().setHours(0, 0, 0, 0);
+    if (ts.valueOf() - todayEpochMillis < 24 * 60 * 60 * 1000) {
+      s = 'Today';
+    } else if (ts.valueOf() - todayEpochMillis < 48 * 60 * 60 * 1000) {
+      s = 'Tomorrow';
+    }
+
+    // Add the time.
+    if (timestamp.dateTime) {
+      s += ', ' + ts.toLocaleTimeString(undefined, { timeStyle: 'short' });
+    }
+    return s;
+  }
+
   async #fetchEvents() {
     clearTimeout(this.#fetchId);
     try {
@@ -46,16 +73,18 @@ class ClientCalendar extends LitElement {
     return css`
       :host {
         display: flex;
-        flex-direction: column;
-        flex-wrap: wrap;
+        flex-flow: column wrap;
+        align-content: flex-start;
+        gap: 10px;
         overflow: hidden;
         width: 100%;
         height: 100%;
       }
 
       .event {
-        width: 33%;
-        height: 33%;
+        box-sizing: border-box;
+        width: calc((100% - 20px) / 3);
+        height: calc((100% - 20px) / 3);
         background-color: lightblue;
       }
     `;
@@ -72,7 +101,7 @@ class ClientCalendar extends LitElement {
       return html`
         ${repeat(this.events, event => html`
           <div class="event">
-
+            <div>${this._buildDateTimeString(event.start)}</div>
           </div>
         `)}
       `;
