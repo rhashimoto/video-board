@@ -25,20 +25,21 @@ class ClientCalendar extends LitElement {
 
   async #fetchEvents() {
     clearTimeout(this.#fetchId);
-
-    await servicesReady;
-    const result = await gCall(gapi =>
-      gapi.client.calendar.events.list({
-        calendarId: 'primary',
-        maxResults: 8,
-        orderBy: 'startTime',
-        singleEvents: true,
-        timeMin: new Date(new Date().setHours(0,0,0,0)).toISOString()
-      }));
-    this.events = result.items;
-    console.log(this.events);
-    
-    this.#fetchId = setTimeout(() => this.#fetchEvents(), UPDATE_EVENTS_INTERVAL_MILLIS)
+    try {
+      await servicesReady;
+      const result = await gCall(gapi =>
+        gapi.client.calendar.events.list({
+          calendarId: 'primary',
+          maxResults: 8,
+          orderBy: 'startTime',
+          singleEvents: true,
+          timeMin: new Date(new Date().setHours(0,0,0,0)).toISOString()
+        }));
+      this.events = result.items;
+      console.log(this.events);
+    } finally {
+      this.#fetchId = setTimeout(() => this.#fetchEvents(), UPDATE_EVENTS_INTERVAL_MILLIS);
+    }
   }
 
   static get styles() {
@@ -46,6 +47,7 @@ class ClientCalendar extends LitElement {
       :host {
         display: flex;
         flex-direction: column;
+        flex-wrap: wrap;
         overflow: hidden;
         width: 100%;
         height: 100%;
