@@ -11,18 +11,24 @@ const EVENTS_WINDOW_MILLIS = 7 * DAY_MILLIS;
 const servicesReady = getFirebaseApp();
 
 class ClientCalendar extends LitElement {
+  #nowId = 0;
   #fetchId = 0;
 
   static properties = {
+    now: { attribute: null },
     events: { attribute: null },
     detail: { attribute: null }
   }
 
   constructor() {
     super();
+    this.now = Date.now();
+    setInterval(() => this.now = Date.now(), 60 * 1000);
+
     this.events = [];
+    this.#fetchEvents();
+
     this.detail = null;
-    this.#fetchEvents()
   }
 
   async #fetchEvents() {
@@ -52,31 +58,12 @@ class ClientCalendar extends LitElement {
   }
 
   #augmentEvent(event) {
-    // Build friendly date/time strings.
+    // Calculate start time milliseconds since epoch.
     const startDate =
       (event.start.dateTime && new Date(event.start.dateTime)) ||
       (event.start.date && new Date(event.start.date + 'T00:00')) ||
       new Date(0);
-    const startEpoch = startDate.valueOf();
-
-    const todayEpoch = new Date().setHours(0, 0, 0, 0);
-    if (startEpoch - todayEpoch < DAY_MILLIS) {
-      event.start.dateString = 'Today';
-    } else if (startEpoch - todayEpoch < 2 * DAY_MILLIS) {
-      event.start.dateString = 'Tomorrow';
-    } else {
-      event.start.dateString = startDate.toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric'
-      });
-    }
-
-    if (event.start.dateTime) {
-      event.start.timeString = startDate.toLocaleTimeString(undefined, { timeStyle: 'short' });
-    } else {
-      event.start.timeString = '';
-    }
+    event.start.epochMillis = startDate.valueOf();
 
     // Parse description.
     try {
@@ -85,6 +72,53 @@ class ClientCalendar extends LitElement {
     } catch {
       event.extras = { text: event.description ?? '' };
     }
+  }
+
+  #getEventDateString(event) {
+    const startEpoch = event.start.epochMillis;
+    const todayEpoch = new Date().setHours(0, 0, 0, 0);
+    const delta = startEpoch - todayEpoch;
+    if (delta < DAY_MILLIS) {
+      return 'Today';
+    } else if (delta < 2 * DAY_MILLIS) {
+      return 'Tomorrow';
+    } else {
+      return new Date(startEpoch).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
+
+  #getEventTimeString(event) {
+    if (event.start.dateTime) {
+      return new Date(event.start.dateTime)
+        .toLocaleTimeString(undefined, { timeStyle: 'short' });
+    }
+    return '';
+  }
+
+  #getEventClasses(event) {
+    const classes = ['event'];
+
+    const startEpoch = event.start.epochMillis;
+    const todayEpoch = new Date().setHours(0, 0, 0, 0);
+    const delta = startEpoch - todayEpoch;
+    if (delta < DAY_MILLIS) {
+      classes.push('today');
+    } else if (delta < 2 * DAY_MILLIS) {
+      classes.push('tomorrow');
+    } else {
+      classes.push('future');
+    }
+
+    if (event.extras.blink &&
+        new Date(event.start.dateTime).valueOf() < new Date().valueOf()) {
+      classes.push('blink');
+    }
+
+    return classes.join(' ');
   }
 
   static get styles() {
@@ -105,9 +139,6 @@ class ClientCalendar extends LitElement {
         height: calc((100% - 20px) / 3);
         display: flex;
         flex-direction: column;
-
-        color: black;
-        background-color: gold;
       }
 
       .event-summary {
@@ -127,6 +158,21 @@ class ClientCalendar extends LitElement {
         justify-content: space-between;
         font-size: 18pt;
         padding-top: 0.5em;
+      }
+
+      .today {
+        color: black;
+        background-color: gold;
+      }
+
+      .tomorrow {
+        color: black;
+        background-color: lightgreen;
+      }
+
+      .future {
+        color: black;
+        background-color: lightblue;
       }
 
       .blink {
@@ -151,12 +197,12 @@ class ClientCalendar extends LitElement {
     } else {
       return html`
         ${repeat(this.events, event => html`
-          <div class="event">
+          <div class="${this.#getEventClasses(event)}">
             <div class="event-summary">${event.summary}</div>
             <div class="event-desc">${event.extras?.text}</div>
             <div class="event-when">
-              <span>${event.start.dateString}</span>
-              <span>${event.start.timeString}</span>
+              <span>${this.#getEventDateString(event)}</span>
+              <span>${this.#getEventTimeString(event)}</span>
             </div>
           </div>
         `)}
