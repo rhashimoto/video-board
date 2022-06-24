@@ -27,6 +27,8 @@ class ClientTop extends LitElement {
         gap: 10px;
         width: 100%;
         height: 100%;
+        color: white;
+        background-color: #2f2f4f;
       }
 
       #bar {
