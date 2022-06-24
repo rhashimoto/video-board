@@ -1,5 +1,6 @@
 import { css, html, LitElement } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
+import '@material/mwc-button';
 
 import { getFirebaseApp } from './firebase.js';
 import  { gCall } from './gapi.js';
@@ -25,7 +26,7 @@ class ClientCalendar extends LitElement {
     this.now = Date.now();
     setInterval(() => this.now = Date.now(), 60 * 1000);
 
-    this.events = [];
+    this.events = new Map();
     this.#fetchEvents();
 
     this.detail = null;
@@ -39,16 +40,16 @@ class ClientCalendar extends LitElement {
         const todayEpoch = new Date().setHours(0,0,0,0);
         return gapi.client.calendar.events.list({
           calendarId: 'primary',
-          maxResults: 8,
+          maxResults: 9,
           orderBy: 'startTime',
           singleEvents: true,
           timeMin: new Date(todayEpoch).toISOString(),
-          timeMax: new Date(todayEpoch + EVENTS_WINDOW_MILLIS).toISOString()
+          //timeMax: new Date(todayEpoch + EVENTS_WINDOW_MILLIS).toISOString()
         });
       });
-      this.events = result.items;
+      this.events = new Map(result.items.map(item => [item.id, item]));
 
-      for (const event of this.events) {
+      for (const event of this.events.values()) {
         this.#augmentEvent(event);
       }
       console.log(this.events);
@@ -77,17 +78,17 @@ class ClientCalendar extends LitElement {
   #getEventDateString(event) {
     const startEpoch = event.start.epochMillis;
     const todayEpoch = new Date().setHours(0, 0, 0, 0);
-    const delta = startEpoch - todayEpoch;
-    if (delta < DAY_MILLIS) {
-      return 'Today';
-    } else if (delta < 2 * DAY_MILLIS) {
-      return 'Tomorrow';
-    } else {
-      return new Date(startEpoch).toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric'
-      });
+    switch(Math.trunc((startEpoch - todayEpoch) / DAY_MILLIS)) {
+      case 0:
+        return 'Today';
+      case 1:
+        return 'Tomorrow';
+      default:
+        return new Date(startEpoch).toLocaleDateString(undefined, {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric'
+        });
     }
   }
 
@@ -99,46 +100,65 @@ class ClientCalendar extends LitElement {
     return '';
   }
 
-  #getEventClasses(event) {
-    const classes = ['event'];
+  #getEventImminence(event) {
+    const dateString = this.#getEventDateString(event).toLowerCase();
+    return ['today', 'tomorrow'].includes(dateString) ? dateString : 'future';
+  }
 
-    const startEpoch = event.start.epochMillis;
-    const todayEpoch = new Date().setHours(0, 0, 0, 0);
-    const delta = startEpoch - todayEpoch;
-    if (delta < DAY_MILLIS) {
-      classes.push('today');
-    } else if (delta < 2 * DAY_MILLIS) {
-      classes.push('tomorrow');
-    } else {
-      classes.push('future');
-    }
+  #shouldEventBlink(event) {
+    return event.extras.blink &&
+      new Date(event.start.dateTime).valueOf() < new Date().valueOf();
+  }
 
-    if (event.extras.blink &&
-        new Date(event.start.dateTime).valueOf() < new Date().valueOf()) {
-      classes.push('blink');
-    }
+  #handleEventTap({currentTarget}) {
+    const id = currentTarget.getAttribute('data-id');
+    const event = this.events.get(id);
+    this.detail = event;
+  }
 
-    return classes.join(' ');
+  #handleDetailBack() {
+    this.detail = null;
+  }
+
+  #handleDetailComplete() {
+
   }
 
   static get styles() {
     return css`
       :host {
         display: flex;
-        flex-flow: column wrap;
-        align-content: flex-start;
-        gap: 10px;
-        overflow: hidden;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 2em;
+
         width: 100%;
         height: 100%;
+        overflow: hidden;
+      }
+
+      mwc-button {
+        --mdc-theme-primary: #e9437a;
+        --mdc-theme-on-primary: white;
+      }
+
+      #events-container {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+
+        display: grid;
+        grid-template-rows: repeat(3, 1fr);
+        grid-template-columns: repeat(3, 1fr);
+        grid-auto-flow: column;
+        gap: 10px;
       }
 
       .event {
-        box-sizing: border-box;
-        width: calc((100% - 20px) / 3);
-        height: calc((100% - 20px) / 3);
         display: flex;
         flex-direction: column;
+        align-items: stretch;
       }
 
       .event-summary {
@@ -153,11 +173,21 @@ class ClientCalendar extends LitElement {
       }
 
       .event-when {
-        width: 100%;
         display: flex;
         justify-content: space-between;
         font-size: 18pt;
         padding-top: 0.5em;
+      }
+
+      #detail {
+        width: 50%;
+        aspect-ratio: 16 / 9;
+      }
+      
+      #detail-buttons {
+        display: flex;
+        width: 50%;
+        justify-content: space-around;
       }
 
       .today {
@@ -184,28 +214,51 @@ class ClientCalendar extends LitElement {
           background-color: hotpink;
         }
       }
+
+      .hidden {
+        display: none;
+      }
     `;
   }
 
   render() {
     if (this.detail) {
       return html`
-        <div id="detail">
-
+        <div id="detail"
+          class="event ${this.#getEventImminence(this.detail)}">
+          <div class="event-summary">${this.detail.summary}</div>
+            <div class="event-desc">${this.detail.extras?.text}</div>
+            <div class="event-when">
+              <span>${this.#getEventDateString(this.detail)}</span>
+              <span>${this.#getEventTimeString(this.detail)}</span>
+            </div>
+        </div>
+        <div id=detail-buttons>
+          <mwc-button label="Back to events" raised
+            @click=${this.#handleDetailBack}>
+          </mwc-button>
+          <mwc-button label="Task complete" raised
+            class="${this.detail.extras.isTask ? '' : 'hidden'}"
+            @click=${this.#handleDetailComplete}>
+          </mwc-button>
         </div>
       `;
     } else {
       return html`
-        ${repeat(this.events, event => html`
-          <div class="${this.#getEventClasses(event)}">
-            <div class="event-summary">${event.summary}</div>
-            <div class="event-desc">${event.extras?.text}</div>
-            <div class="event-when">
-              <span>${this.#getEventDateString(event)}</span>
-              <span>${this.#getEventTimeString(event)}</span>
+        <div id="events-container">
+          ${repeat(this.events.values(), event => html`
+            <div
+              class="event ${this.#getEventImminence(event)} ${this.#shouldEventBlink(event) ? 'blink' : ''}"
+              data-id="${event.id}" @click=${this.#handleEventTap}>
+              <div class="event-summary">${event.summary}</div>
+              <div class="event-desc">${event.extras?.text}</div>
+              <div class="event-when">
+                <span>${this.#getEventDateString(event)}</span>
+                <span>${this.#getEventTimeString(event)}</span>
+              </div>
             </div>
-          </div>
-        `)}
+          `)}
+        </div>
       `;
     }
   }
