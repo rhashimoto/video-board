@@ -41,18 +41,18 @@ class ClientCalendar extends LitElement {
         const todayEpoch = new Date().setHours(0,0,0,0);
         return gapi.client.calendar.events.list({
           calendarId: 'primary',
-          maxResults: 9,
+          maxResults: 30,
           orderBy: 'startTime',
           singleEvents: true,
           timeMin: new Date(todayEpoch).toISOString(),
-          //timeMax: new Date(todayEpoch + EVENTS_WINDOW_MILLIS).toISOString()
+          timeMax: new Date(todayEpoch + EVENTS_WINDOW_MILLIS).toISOString()
         });
       });
-      this.events = new Map(result.items.map(item => [item.id, item]));
-
-      for (const event of this.events.values()) {
-        this.#augmentEvent(event);
-      }
+      this.events = new Map(result.items
+        .map(item => this.#augmentEvent(item))
+        .filter(item => this.#shouldShowEvent(item))
+        .filter((item, i) => i < 9)
+        .map(item => [item.id, item]));
       console.log(this.events);
     } finally {
       this.#fetchId = setTimeout(() => this.#fetchEvents(), UPDATE_EVENTS_INTERVAL_MILLIS);
@@ -69,11 +69,24 @@ class ClientCalendar extends LitElement {
 
     // Parse description.
     try {
-      event.extras = JSON.parse(event.description);
+      const description = event.description
+        .replaceAll(/<[^\>]+>/g, '')
+        .replaceAll('&nbsp;', '');
+      event.extras = JSON.parse(description);
       if (typeof event.extras !== 'object') throw new Error();
     } catch {
       event.extras = { text: event.description ?? '' };
     }
+
+    return event;
+  }
+
+  #shouldShowEvent(event) {
+    // Don't show recurring tasks that aren't for today.
+    return event.extras.forceShow ||
+      !event.extras.isTask ||
+      !event.recurringEventId ||
+      this.#getEventDateString(event) === 'Today';
   }
 
   #getEventDateString(event) {
