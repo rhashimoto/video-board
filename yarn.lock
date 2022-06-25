@@ -793,7 +793,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/plugin-node-resolve@npm:^13.0.4":
+"@rollup/plugin-node-resolve@npm:^13.0.4, @rollup/plugin-node-resolve@npm:^13.3.0":
   version: 13.3.0
   resolution: "@rollup/plugin-node-resolve@npm:13.3.0"
   dependencies:
@@ -2918,6 +2918,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"rollup@npm:^2.75.7":
+  version: 2.75.7
+  resolution: "rollup@npm:2.75.7"
+  dependencies:
+    fsevents: ~2.3.2
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    rollup: dist/bin/rollup
+  checksum: a6331d46b01062b184efdcb42ce12caf2e1575f989963944534b02f5855f6f3bc239ed0c1a18893572d7695af6d83166f3aef59dbd0365084e1531cb67824674
+  languageName: node
+  linkType: hard
+
 "safe-buffer@npm:5.2.1, safe-buffer@npm:>=5.1.0, safe-buffer@npm:~5.2.0":
   version: 5.2.1
   resolution: "safe-buffer@npm:5.2.1"
@@ -3237,9 +3251,11 @@ __metadata:
   dependencies:
     "@material/mwc-button": ^0.26.1
     "@material/mwc-icon-button": ^0.26.1
+    "@rollup/plugin-node-resolve": ^13.3.0
     "@web/dev-server": ^0.1.31
     firebase: ^9.8.3
     lit: ^2.2.5
+    rollup: ^2.75.7
   languageName: unknown
   linkType: soft
 

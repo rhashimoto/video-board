@@ -2,11 +2,14 @@
   "name": "video-board",
   "type": "module",
   "scripts": {
+    "prepack": "rollup -c",
     "start": "web-dev-server"
   },
   "packageManager": "yarn@3.2.1",
   "devDependencies": {
-    "@web/dev-server": "^0.1.31"
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "@web/dev-server": "^0.1.31",
+    "rollup": "^2.75.7"
   },
   "dependencies": {
     "@material/mwc-button": "^0.26.1",
