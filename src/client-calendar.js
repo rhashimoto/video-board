@@ -110,11 +110,6 @@ class ClientCalendar extends LitElement {
     return event.extras.isTask && event.start.epochMillis < new Date().valueOf();
   }
 
-  #shouldEventBlink(event) {
-    return event.extras.blink &&
-      new Date(event.start.dateTime).valueOf() < new Date().valueOf();
-  }
-
   #handleEventTap({currentTarget}) {
     const id = currentTarget.getAttribute('data-id');
     const event = this.events.get(id);
@@ -126,8 +121,17 @@ class ClientCalendar extends LitElement {
     this.#clearDetail();
   }
 
-  #handleDetailComplete() {
-    this.#clearDetail();
+  async #handleDetailComplete() {
+    try {
+      await servicesReady;
+      await gCall(gapi => gapi.client.calendar.events.delete({
+        calendarId: 'primary',
+        eventId: this.detail.id
+      }));
+      this.events.delete(this.detail.id);
+    } finally {
+      this.#clearDetail();
+    }
   }
 
   #clearDetail() {
