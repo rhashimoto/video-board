@@ -6,14 +6,15 @@ import { getFirebaseApp } from './firebase.js';
 import  { gCall } from './gapi.js';
 
 const UPDATE_EVENTS_INTERVAL_MILLIS = 5 * 60 * 1000;
+const DETAIL_TIMEOUT_MILLIS = 1 * 60 * 1000;
 const DAY_MILLIS = 24 * 60 * 60 * 1000;
 const EVENTS_WINDOW_MILLIS = 7 * DAY_MILLIS;
 
 const servicesReady = getFirebaseApp();
 
 class ClientCalendar extends LitElement {
-  #nowId = 0;
   #fetchId = 0;
+  #detailId = 0;
 
   static properties = {
     now: { attribute: null },
@@ -105,6 +106,10 @@ class ClientCalendar extends LitElement {
     return ['today', 'tomorrow'].includes(dateString) ? dateString : 'future';
   }
 
+  #isEventActiveTask(event) {
+    return event.extras.isTask && event.start.epochMillis < new Date().valueOf();
+  }
+
   #shouldEventBlink(event) {
     return event.extras.blink &&
       new Date(event.start.dateTime).valueOf() < new Date().valueOf();
@@ -114,14 +119,20 @@ class ClientCalendar extends LitElement {
     const id = currentTarget.getAttribute('data-id');
     const event = this.events.get(id);
     this.detail = event;
+    this.#detailId = setTimeout(() => this.#clearDetail(), DETAIL_TIMEOUT_MILLIS);
   }
 
   #handleDetailBack() {
-    this.detail = null;
+    this.#clearDetail();
   }
 
   #handleDetailComplete() {
+    this.#clearDetail();
+  }
 
+  #clearDetail() {
+    clearTimeout(this.#detailId);
+    this.detail = null;
   }
 
   static get styles() {
@@ -238,7 +249,7 @@ class ClientCalendar extends LitElement {
             @click=${this.#handleDetailBack}>
           </mwc-button>
           <mwc-button label="Task complete" raised
-            class="${this.detail.extras.isTask ? '' : 'hidden'}"
+            class="${this.#isEventActiveTask(this.detail) ? '' : 'hidden'}"
             @click=${this.#handleDetailComplete}>
           </mwc-button>
         </div>
@@ -248,7 +259,7 @@ class ClientCalendar extends LitElement {
         <div id="events-container">
           ${repeat(this.events.values(), event => html`
             <div
-              class="event ${this.#getEventImminence(event)} ${this.#shouldEventBlink(event) ? 'blink' : ''}"
+              class="event ${this.#getEventImminence(event)} ${this.#isEventActiveTask(event) ? 'blink' : ''}"
               data-id="${event.id}" @click=${this.#handleEventTap}>
               <div class="event-summary">${event.summary}</div>
               <div class="event-desc">${event.extras?.text}</div>
