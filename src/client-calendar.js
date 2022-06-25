@@ -79,6 +79,17 @@ class ClientCalendar extends LitElement {
       event.extras = { text: event.description ?? '' };
     }
 
+    // Send update to invitees for expired incomplete tasks.
+    if (event.extras.isTask && !event.extras.incomplete &&
+        new Date(event.end.dateTime).valueOf() < Date.now()) {
+      event.extras.incomplete = true;
+      gCall(gapi => gapi.client.calendar.events.patch({
+        calendarId: 'primary',
+        eventId: event.id,
+        sendUpdates: 'all',
+        description: JSON.stringify(event.extras),
+      }));
+    }
     return event;
   }
 
