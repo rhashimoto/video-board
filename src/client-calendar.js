@@ -1,5 +1,6 @@
 import { css, html, LitElement } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import '@material/mwc-button';
 
 import { getFirebaseApp } from './firebase.js';
@@ -279,7 +280,7 @@ class ClientCalendar extends LitElement {
               class="event ${this.#getEventImminence(event)} ${this.#isEventActiveTask(event) ? 'blink' : ''}"
               data-id="${event.id}" @click=${this.#handleEventTap}>
               <div class="event-summary">${event.summary}</div>
-              <div class="event-desc">${event.extras?.text}</div>
+              <div class="event-desc">${unsafeHTML(event.extras?.text ?? '')}</div>
               <div class="event-when">
                 <span>${this.#getEventDateString(event)}</span>
                 <span>${this.#getEventTimeString(event)}</span>
