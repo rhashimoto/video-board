@@ -2,7 +2,7 @@ import { css, html, LitElement } from 'lit';
 
 import './client-calendar.js';
 
-class ClientTop extends LitElement {
+class ClientApp extends LitElement {
   static properties = {
     date: { attribute: null },
     time: { attribute: null },
@@ -55,4 +55,4 @@ class ClientTop extends LitElement {
     `;
   }
 }
-customElements.define('client-top', ClientTop);
+customElements.define('client-app', ClientApp);
