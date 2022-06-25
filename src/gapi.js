@@ -3,8 +3,7 @@
 const {
   GOOGLE_CLIENT_ID,
   GOOGLE_DISCOVERY_DOCS, // array of [service, version]
-  GOOGLE_GAPI_LIBRARIES, // colon-delimited string
-  GOOGLE_SCOPES          // array of scopes
+  GOOGLE_GAPI_LIBRARIES  // colon-delimited string
 } = JSON.parse(document.getElementById('google-config')?.textContent ?? '{}');
 
 /**
@@ -49,34 +48,6 @@ async function onGAPILoad() {
   }));
 
   setGAPI(gapi);
-}
-
-let gisReady = new Promise(function(resolve) {
-  const existingCallback = window['onGISLoad'];
-  window['onGISLoad'] = function() {
-    existingCallback?.();
-    resolve();
-  };
-  window.addEventListener('onGISLoad', resolve);
-});
-
-let credential;
-export async function getCredential() {
-  if (!credential) {
-    // Fetch credential.
-    await gisReady;
-    const response = await new Promise(function(resolve) {
-      window['google'].accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        auto_select: true,
-        cancel_on_tap_outside: false,
-        callback: resolve
-      });
-      window['google'].accounts.id.prompt();
-    });
-    credential = response.credential;
-  }
-  return credential;
 }
 
 let getAccessToken = async function() {
