@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Video Board</title>
+  <style>
+    html, body {
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+    }
+  </style>
+  <script id="google-config" type="application/json">
+    {
+      "GOOGLE_APP_ID": "104957196093",
+      "GOOGLE_CLIENT_ID": "104957196093-fc9it0e7vteflecd2lvmt5mokeq94k1r.apps.googleusercontent.com",
+      "GOOGLE_DISCOVERY_DOCS": [
+        "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+        "https://photoslibrary.googleapis.com/$discovery/rest?version=v1"
+      ],
+      "GOOGLE_GAPI_LIBRARIES": "client"
+    }
+  </script>
+</head>
+<body>
+  <client-app></client-app>
+  <script type="module" src="client-app.js"></script>
+
+  <script defer src="https://apis.google.com/js/api.js" onload="onGAPILoad()"></script>
+</body>
+</html>
