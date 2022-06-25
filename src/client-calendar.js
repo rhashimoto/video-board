@@ -267,7 +267,7 @@ class ClientCalendar extends LitElement {
         <div id="detail"
           class="event ${this.#getEventImminence(this.detail)}">
           <div class="event-summary">${this.detail.summary}</div>
-            <div class="event-desc">${this.detail.extras?.text}</div>
+            <div class="event-desc">${unsafeHTML(this.detail.extras?.text ?? '')}</div>
             <div class="event-when">
               <span>${this.#getEventDateString(this.detail)}</span>
               <span>${this.#getEventTimeString(this.detail)}</span>
