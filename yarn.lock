@@ -809,6 +809,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rollup/plugin-replace@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@rollup/plugin-replace@npm:4.0.0"
+  dependencies:
+    "@rollup/pluginutils": ^3.1.0
+    magic-string: ^0.25.7
+  peerDependencies:
+    rollup: ^1.20.0 || ^2.0.0
+  checksum: b61701e612661a46da06ca88f390c3839b586708abc0329a476411b90aa8ac59fe94437ede4c3fe53fea268b3054ea9d7d4ee851d7bd0cb7a5f06906002067cb
+  languageName: node
+  linkType: hard
+
 "@rollup/pluginutils@npm:^3.1.0":
   version: 3.1.0
   resolution: "@rollup/pluginutils@npm:3.1.0"
@@ -2387,6 +2399,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"magic-string@npm:^0.25.7":
+  version: 0.25.9
+  resolution: "magic-string@npm:0.25.9"
+  dependencies:
+    sourcemap-codec: ^1.4.8
+  checksum: 9a0e55a15c7303fc360f9572a71cffba1f61451bc92c5602b1206c9d17f492403bf96f946dfce7483e66822d6b74607262e24392e87b0ac27b786e69a40e9b1a
+  languageName: node
+  linkType: hard
+
 "make-fetch-happen@npm:^10.0.3":
   version: 10.1.7
   resolution: "make-fetch-happen@npm:10.1.7"
@@ -3038,6 +3059,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sourcemap-codec@npm:^1.4.8":
+  version: 1.4.8
+  resolution: "sourcemap-codec@npm:1.4.8"
+  checksum: b57981c05611afef31605732b598ccf65124a9fcb03b833532659ac4d29ac0f7bfacbc0d6c5a28a03e84c7510e7e556d758d0bb57786e214660016fb94279316
+  languageName: node
+  linkType: hard
+
 "ssri@npm:^9.0.0":
   version: 9.0.1
   resolution: "ssri@npm:9.0.1"
@@ -3272,11 +3300,14 @@ __metadata:
     "@material/mwc-button": ^0.26.1
     "@material/mwc-icon-button": ^0.26.1
     "@rollup/plugin-node-resolve": ^13.3.0
+    "@rollup/plugin-replace": ^4.0.0
     "@web/dev-server": ^0.1.31
     firebase: ^9.8.3
     lit: ^2.2.5
     rollup: ^2.75.7
     typescript: 4.7.3
+    workbox-routing: ^6.5.3
+    workbox-strategies: ^6.5.3
   languageName: unknown
   linkType: soft
 
@@ -3366,6 +3397,31 @@ __metadata:
     reduce-flatten: ^2.0.0
     typical: ^5.2.0
   checksum: 3d927f3c95d0ad990968da54c0ad8cde2801d8e91006cd7474c26e6b742cc8557250ce495c9732b2f9db1f903601cb74ec282e0f122ee0d02d7abe81e150eea8
+  languageName: node
+  linkType: hard
+
+"workbox-core@npm:6.5.3":
+  version: 6.5.3
+  resolution: "workbox-core@npm:6.5.3"
+  checksum: b898da6d990642eaac7ad38db0d8379ef42d8de5fd6636ac859d79ec6f15d41e1b1bc6dce6dfc8b0e0b38094c0af8e29b2e8c2461666ea67cacd59dc5f53b45e
+  languageName: node
+  linkType: hard
+
+"workbox-routing@npm:^6.5.3":
+  version: 6.5.3
+  resolution: "workbox-routing@npm:6.5.3"
+  dependencies:
+    workbox-core: 6.5.3
+  checksum: 9274c40f5b4ca618fb90b5992e6f7f336b7b2303262529510dd229c080a1c6113672a7ef00cb6e24d99ac4f44f606506ca499a46316de87b836d31f5fec71045
+  languageName: node
+  linkType: hard
+
+"workbox-strategies@npm:^6.5.3":
+  version: 6.5.3
+  resolution: "workbox-strategies@npm:6.5.3"
+  dependencies:
+    workbox-core: 6.5.3
+  checksum: 74e1ac4d239c9439aab693dbaa02d03db00ebef9195d9537c0947f853a107d2c9960e42b0e2284911be69052c99f63dd12dadf069839734bb921041fa108e846
   languageName: node
   linkType: hard
 

@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path'
 import { nodeResolve } from '@rollup/plugin-node-resolve';
+import replace from '@rollup/plugin-replace';
+
 // import { terser } from 'rollup-plugin-terser';
 
 const OUT_DIR = 'dist';
@@ -62,5 +64,21 @@ export default [{
       './src/client.html'
     ]),
     nodeResolve()
+  ]
+}, {
+  input: 'src/sw.js',
+  output: [
+    {
+      file: `${OUT_DIR}/sw.js`,
+      format: "iife",
+      sourcemap: true
+    },
+  ],
+  plugins: [
+    nodeResolve(),
+    replace({
+      preventAssignment: true,
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production')
+    })
   ]
 }];

@@ -21,11 +21,18 @@
       "GOOGLE_GAPI_LIBRARIES": "client"
     }
   </script>
+
+  <script>
+    navigator.serviceWorker
+      ?.register('./sw.js', { type: "module" })
+      ?.catch(function(error) {
+        console.warn('Service worker registration failed:', error);
+      });
+  </script>
 </head>
 <body>
   <client-app></client-app>
   <script type="module" src="client-app.js"></script>
-
   <script defer src="https://apis.google.com/js/api.js" onload="onGAPILoad()"></script>
 </body>
 </html>
