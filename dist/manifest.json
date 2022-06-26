@@ -1,0 +1,21 @@
+{
+  "name": "VideoBoard",
+  "theme_color": "#2196f3",
+  "background_color": "#2196f3",
+  "display": "standalone",
+  "orientation": "landscape",
+  "scope": "/dist/",
+  "start_url": "/dist/client.html",
+  "icons": [
+    {
+      "src": "/dist/icon192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/dist/icon512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
