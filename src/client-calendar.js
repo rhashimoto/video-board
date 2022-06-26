@@ -14,19 +14,16 @@ const EVENTS_WINDOW_MILLIS = 7 * DAY_MILLIS;
 const servicesReady = getFirebaseApp();
 
 class ClientCalendar extends LitElement {
-  #fetchId = 0;
-  #detailId = 0;
+  #fetchId;
+  #detailId;
 
   static properties = {
-    now: { attribute: null },
     events: { attribute: null },
     detail: { attribute: null }
   }
 
   constructor() {
     super();
-    this.now = Date.now();
-    setInterval(() => this.now = Date.now(), 60 * 1000);
 
     this.events = new Map();
     this.#fetchEvents();
