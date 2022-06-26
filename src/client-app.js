@@ -1,5 +1,6 @@
 import { css, html, LitElement } from 'lit';
 
+import { getGAPI } from './gapi.js';
 import './client-calendar.js';
 
 class ClientApp extends LitElement {
@@ -11,6 +12,16 @@ class ClientApp extends LitElement {
   constructor() {
     super();
     this.#updateDateTime();
+
+    // Reload page if Google APIs did not initialize properly.
+    Promise.race([
+      getGAPI(),
+      new Promise(resolve => setTimeout(resolve, 60_000))
+    ]).then(async (gapi) => {
+      if (!gapi) {
+        window.location.reload();
+      }
+    });
   }
 
   #updateDateTime() {
