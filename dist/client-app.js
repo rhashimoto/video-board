@@ -23780,7 +23780,7 @@
         });
         this.events = new Map(result.items
           .map(item => this.#augmentEvent(item))
-          .filter(item => this.#shouldShowEvent(item))
+          .filter((item, i) => this.#shouldShowEvent(item, i))
           .filter((item, i) => i < 9)
           .map(item => [item.id, item]));
         console.log(this.events);
@@ -23822,12 +23822,19 @@
       return event;
     }
 
-    #shouldShowEvent(event) {
-      // Don't show recurring tasks that aren't for today.
-      return event.extras.forceShow ||
-        !event.extras.isTask ||
-        !event.recurringEventId ||
-        this.#getEventDateString(event) === 'Today';
+    #shouldShowEvent(event, index) {
+      // Show only first of a recurring task unless forceShow is set.
+      if (index === 0) {
+        this._recurringEventIds = new Set();
+      }
+
+      if (event.extras.isTask && event.recurringEventId) {
+        if (this._recurringEventIds.has(event.recurringEventId)) {
+          return event.extras.forceShow;
+        }
+        this._recurringEventIds.add(event.recurringEventId);
+      }
+      return true;
     }
 
     #getEventDateString(event) {
