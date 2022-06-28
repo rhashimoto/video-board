@@ -23738,6 +23738,7 @@
     return result.access_token;
   });
 
+  const DEFAULT_LEAD_MINUTES = 30;
   const UPDATE_EVENTS_INTERVAL_MILLIS = 5 * 60 * 1000;
   const DETAIL_TIMEOUT_MILLIS = 1 * 60 * 1000;
   const DAY_MILLIS = 24 * 60 * 60 * 1000;
@@ -23868,7 +23869,15 @@
     }
 
     #isEventActiveTask(event) {
-      return event.extras.isTask && event.start.epochMillis < new Date().valueOf();
+      if (event.extras.isTask) {
+        // Tasks are active at the earliest reminder.
+        const minutes = event.reminders?.useDefault ?
+          DEFAULT_LEAD_MINUTES :
+          Math.max(0, ...event.reminders.overrides.map(override => override.minutes));
+        const activeTime = event.start.epochMillis - minutes * 60_000;
+        return activeTime < new Date().valueOf();
+      }
+      return false;
     }
 
     #handleEventTap({currentTarget}) {
