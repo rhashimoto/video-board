@@ -5,8 +5,9 @@ import './client-calendar.js';
 
 class ClientApp extends LitElement {
   static properties = {
-    date: { attribute: null },
-    time: { attribute: null },
+    timestamp: { attribute: null },
+    dateString: { attribute: null },
+    timeString: { attribute: null },
   }
 
   constructor() {
@@ -25,8 +26,10 @@ class ClientApp extends LitElement {
   }
 
   #updateDateTime() {
-    this.date = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-    this.time = new Date().toLocaleTimeString(undefined, { timeStyle: 'short' });
+    const date = new Date();
+    this.timestamp = date.valueOf();
+    this.dateString = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    this.timeString = date.toLocaleTimeString(undefined, { timeStyle: 'short' });
     setTimeout(() => this.#updateDateTime(), 1000);
   }
 
@@ -57,11 +60,11 @@ class ClientApp extends LitElement {
   render() {
     return html`
       <div id="bar">
-        <span>${this.date}</span>
-        <span>${this.time}</span>
+        <span>${this.dateString}</span>
+        <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-calendar></client-calendar>
+        <client-calendar .timestamp=${this.timestamp}></client-calendar>
       </div>
     `;
   }

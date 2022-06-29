@@ -23751,6 +23751,7 @@
     #detailId;
 
     static properties = {
+      timestamp: { attribute: null},
       events: { attribute: null },
       detail: { attribute: null }
     }
@@ -23758,6 +23759,7 @@
     constructor() {
       super();
 
+      this.timestamp = Date.now();
       this.events = new Map();
       this.#fetchEvents();
 
@@ -23769,7 +23771,7 @@
       try {
         await servicesReady;
         const result = await gCall(gapi => {
-          const todayEpoch = new Date().setHours(0,0,0,0);
+          const todayEpoch = new Date(this.timestamp).setHours(0,0,0,0);
           return gapi.client.calendar.events.list({
             calendarId: 'primary',
             maxResults: 30,
@@ -23811,7 +23813,7 @@
 
       // Send update to invitees for expired incomplete tasks.
       if (event.extras.isTask && !event.extras.incomplete &&
-          new Date(event.end.dateTime).valueOf() < Date.now()) {
+          new Date(event.end.dateTime).valueOf() < this.timestamp) {
         event.extras.incomplete = true;
         gCall(gapi => gapi.client.calendar.events.patch({
           calendarId: 'primary',
@@ -23840,7 +23842,7 @@
 
     #getEventDateString(event) {
       const startEpoch = event.start.epochMillis;
-      const todayEpoch = new Date().setHours(0, 0, 0, 0);
+      const todayEpoch = new Date(this.timestamp).setHours(0, 0, 0, 0);
       switch(Math.trunc((startEpoch - todayEpoch) / DAY_MILLIS)) {
         case 0:
           return 'Today';
@@ -23875,7 +23877,7 @@
         Math.max(0, ...event.reminders.overrides.map(override => override.minutes)) :
         DEFAULT_LEAD_MINUTES;
         const activeTime = event.start.epochMillis - minutes * 60_000;
-        return activeTime < new Date().valueOf();
+        return activeTime < this.timestamp;
       }
       return false;
     }
@@ -24052,8 +24054,9 @@
 
   class ClientApp extends s$1 {
     static properties = {
-      date: { attribute: null },
-      time: { attribute: null },
+      timestamp: { attribute: null },
+      dateString: { attribute: null },
+      timeString: { attribute: null },
     }
 
     constructor() {
@@ -24072,8 +24075,10 @@
     }
 
     #updateDateTime() {
-      this.date = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-      this.time = new Date().toLocaleTimeString(undefined, { timeStyle: 'short' });
+      const date = new Date();
+      this.timestamp = date.valueOf();
+      this.dateString = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      this.timeString = date.toLocaleTimeString(undefined, { timeStyle: 'short' });
       setTimeout(() => this.#updateDateTime(), 1000);
     }
 
@@ -24104,11 +24109,11 @@
     render() {
       return $`
       <div id="bar">
-        <span>${this.date}</span>
-        <span>${this.time}</span>
+        <span>${this.dateString}</span>
+        <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-calendar></client-calendar>
+        <client-calendar .timestamp=${this.timestamp}></client-calendar>
       </div>
     `;
     }
