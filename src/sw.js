@@ -1,3 +1,4 @@
+import './process.js';
 import { StaleWhileRevalidate } from 'workbox-strategies';
 import { registerRoute, Route } from 'workbox-routing';
 

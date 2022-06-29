@@ -2,6 +2,9 @@
     'use strict';
 
     // @ts-ignore
+    self['process'] = { env: { NODE_ENV: 'production' } };
+
+    // @ts-ignore
     try {
         self['workbox:core:6.5.2'] && _();
     }
