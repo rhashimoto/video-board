@@ -139,9 +139,9 @@ class ClientCalendar extends LitElement {
   #isEventActiveTask(event) {
     if (event.extras.isTask) {
       // Tasks are active at the earliest reminder.
-      const minutes = event.reminders?.useDefault ?
-        DEFAULT_LEAD_MINUTES :
-        Math.max(0, ...event.reminders.overrides.map(override => override.minutes));
+      const minutes = event.reminders?.overrides ?
+      Math.max(0, ...event.reminders.overrides.map(override => override.minutes)) :
+      DEFAULT_LEAD_MINUTES;
       const activeTime = event.start.epochMillis - minutes * 60_000;
       return activeTime < new Date().valueOf();
     }
