@@ -26,8 +26,11 @@ export function getGAPI() {
 // Configure GAPI using load callback.
 window['onGAPILoad'] = (function() {
   const existingCallback = window['onGAPILoad'];
-  return function() {
+  return async function() {
     existingCallback?.();
+
+    // There seems to be a race condition in https://apis.google.com/js/api.js
+    await new Promise(resolve => setTimeout(resolve, 3000));
     onGAPILoad();
   };
 })();
