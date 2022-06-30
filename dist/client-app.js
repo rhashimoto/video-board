@@ -23727,8 +23727,8 @@
   // Install the Google API access token provider.
   setTokenProvider(async function() {
     const uid = await getFirebaseUid();
-    const secret = await queryDatabase(`/config/secret`);
-    const refresh = await queryDatabase(`/clients/${uid}/config/refresh`);
+    const secret = await queryDatabase(`/conf/secret`);
+    const refresh = await queryDatabase(`/users/${uid}/refresh`);
     const result = await fetch('https://oauth2.googleapis.com/token', {
       method: 'post',
       body: new URLSearchParams({
