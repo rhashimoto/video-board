@@ -23807,7 +23807,8 @@
       try {
         const description = event.description
           .replaceAll(/<[^\>]+>/g, '')
-          .replaceAll('&nbsp;', '');
+          .replaceAll('&nbsp;', '')
+          .replaceAll('&quot;', '"');
         event.extras = JSON.parse(description);
         if (typeof event.extras !== 'object') throw new Error();
       } catch {
