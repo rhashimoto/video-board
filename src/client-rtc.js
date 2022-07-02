@@ -191,6 +191,10 @@ class ClientRTC extends LitElement {
         width: 320px;
         min-height: 160px;
       }
+
+      #local {
+        transform: scale(-1, 1);
+      }
     `;
   }
 
