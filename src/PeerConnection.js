@@ -1,6 +1,18 @@
 export class PeerConnection extends RTCPeerConnection {
-  #messageChannel = new MessageChannel();
   #hasLocalMedia = false;
+  #signaling = {
+    send: (message) => {
+      this.dispatchEvent(new MessageEvent('message', {
+        data: JSON.stringify(message)
+      }));
+    },
+
+    postMessage(data) {
+      this.onmessage({ data: JSON.parse(data) });
+    },
+
+    onmessage: null
+  };
 
   /**
    * @param {RTCConfiguration} config 
@@ -12,9 +24,7 @@ export class PeerConnection extends RTCPeerConnection {
     // Adapt to WebRTC perfect negotiation sample code.
     // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
     const pc = this;
-    /** @type {*} */ const signaling = this.#messageChannel.port1;
-    signaling.send = (message) => signaling.postMessage(JSON.stringify(message));
-    signaling.start();
+    const signaling = this.#signaling;
     const polite = options.polite;
     const remoteView = /** @type {HTMLVideoElement} */ (options.remoteView ?? {});
 
@@ -95,11 +105,8 @@ export class PeerConnection extends RTCPeerConnection {
     // });
   }
 
-  /**
-   * @returns {MessagePort}
-   */
-  getSignalPort() {
-    return this.#messageChannel.port2;
+  postMessage(data) {
+    this.#signaling.postMessage(data);
   }
 
   /**

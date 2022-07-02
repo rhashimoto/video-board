@@ -90,7 +90,7 @@ class ClientRTC extends LitElement {
     if (!this.#peerConnection) {
       this.#peerConnection = this.#createPeerConnection(message.src);
     }
-    this.#peerConnection.getSignalPort().postMessage(JSON.parse(message.data));
+    this.#peerConnection.postMessage(message.data);
   }
 
   async #start() {
@@ -114,24 +114,18 @@ class ClientRTC extends LitElement {
       polite: this.#uid < dst,
       remoteView: this.shadowRoot.getElementById('remote')
     });
-
-    const port = peerConnection.getSignalPort()
-    port.addEventListener('message', ({data}) => this.#post(dst, data));
-    port.start();
+    peerConnection.addEventListener('message', async event => {
+      await this.#ready;
+      const message = {
+        timestamp: Date.now(),
+        nonce: this.#nonce || (this.#nonce = Math.random().toString(36).replace('0.', '')),
+        src: this.#uid,
+        data: event['data']
+      };
+      await push(ref(this.#database, `/users/${dst}/inbox`), message);
+    });
 
     return peerConnection;
-  }
-
-  async #post(dst, data) {
-    await this.#ready;
-
-    const message = {
-      timestamp: Date.now(),
-      nonce: this.#nonce || (this.#nonce = Math.random().toString(36).replace('0.', '')),
-      src: this.#uid,
-      data
-    };
-    await push(ref(this.#database, `/users/${dst}/inbox`), message);
   }
 
   static get styles() {
