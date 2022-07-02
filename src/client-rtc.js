@@ -1,11 +1,11 @@
 import { css, html, LitElement } from 'lit';
-import { onChildAdded, push, ref, remove } from "firebase/database";
+import { onChildAdded, onValue, push, ref, remove } from "firebase/database";
 import { repeat } from 'lit/directives/repeat.js';
 
 import { getFirebaseUid, getFirebaseDatabase } from './firebase.js';
 import { PeerConnection } from './PeerConnection.js';
 
-const MESSAGE_EXPIRATION_MILLIS = 60_000;
+const TIMEOUT_MILLIS = 60_000;
 
 const MEDIA_CONSTRAINTS = { audio: true, video: { facingMode: "user" } };
 const RTC_CONFIG = {
@@ -51,18 +51,17 @@ class ClientRTC extends LitElement {
   constructor() {
     super();
     this.#ready = this.#initialize();
-    this.peers = new Map();
+    this.peers = {};
   }
 
   async #initialize() {
     this.#uid = await getFirebaseUid();
     this.#database = await getFirebaseDatabase();
 
-    // Fetch peers.
+    // Synchronize peers.
     const peers = ref(this.#database, `/users/${this.#uid}/peers`)
-    const unsubPeers = onChildAdded(peers, snapshot => {
-      this.peers = new Map(this.peers);
-      this.peers.set(snapshot.key, snapshot.val());
+    const unsubPeers = onValue(peers, snapshot => {
+      this.peers = snapshot.val();
     });
     this.#runOnDisconnect.push(unsubPeers);
 
@@ -71,7 +70,7 @@ class ClientRTC extends LitElement {
     const unsubInbox = onChildAdded(incoming, snapshot => {
       const message = snapshot.val();
       console.log('incoming', message);
-      if (message.timestamp > Date.now() - MESSAGE_EXPIRATION_MILLIS) {
+      if (message.timestamp > Date.now() - TIMEOUT_MILLIS) {
         this.#handleMessage(message);
       }
       remove(snapshot.ref);
@@ -167,7 +166,7 @@ class ClientRTC extends LitElement {
     return html`
       <div>
         <select id="peer-selector">
-          ${repeat(this.peers, ([uid, email]) => {
+          ${repeat(Object.entries(this.peers), ([uid, email]) => {
             return html`
               <option value="${uid}">${email}</option>
             `
