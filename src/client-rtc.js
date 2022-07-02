@@ -46,13 +46,19 @@ class ClientRTC extends LitElement {
   #timeoutId;
 
   static properties = {
-    peers: { attribute: null }
+    peers: { attribute: null },
+    hideControls: { attribute: 'hide-controls', type: Boolean }
   }
 
   constructor() {
     super();
     this.#ready = this.#initialize();
     this.peers = {};
+    this.hideControls = false;
+
+    this.addEventListener('keydown', event => {
+      console.log(event);
+    });
   }
 
   async #initialize() {
@@ -182,25 +188,49 @@ class ClientRTC extends LitElement {
   static get styles() {
     return css`
       :host {
-        display: block;
-        gap: 1em;
+        display: flex;
+        width: 100%;
+        height: 100%;
+
+        flex-direction: column;
+        gap: 0.5em;
       }
 
-      video {
-        border: 1px solid;
-        width: 320px;
-        min-height: 160px;
+      #video-container {
+        display: flex;
+        width: 100%;
+      }
+
+      #remote {
+        width: 50%;
+        transform: scale(-1, 1);
       }
 
       #local {
-        transform: scale(-1, 1);
+        width: 0;
+        flex: 0px 1 1;
+      }
+
+      #caption-container {
+        display: flex;
+        flex-direction: column-reverse;
+        width: 100%;
+        overflow: hidden;
+        flex: 0px 1 1;
+
+        font-size: 4vh;
+        color: yellow;
+      }
+
+      .hidden {
+        display: none;
       }
     `;
   }
 
   render() {
     return html`
-      <div>
+      <div class="${this.hideControls ? 'hidden' : ''}">
         <select id="peer-selector">
           ${repeat(Object.entries(this.peers), ([uid, email]) => {
             return html`
@@ -211,8 +241,11 @@ class ClientRTC extends LitElement {
         <button @click=${this.#start}>Call</button>
         <button @click=${this.#stop}>Stop</button>
       </div>
-      <video id="local" autoplay muted></video>
-      <video id="remote" autoplay></video>
+      <div id="video-container">
+        <video id="remote" autoplay></video>
+        <video id="local" autoplay muted></video>
+      </div>
+      <div id="caption-container"></div>
     `;
   }
 
