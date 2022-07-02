@@ -21,7 +21,7 @@ export class PeerConnection extends RTCPeerConnection {
   constructor(config, options) {
     super(config);
 
-    // Adapt to WebRTC perfect negotiation sample code.
+    // Adapt to use WebRTC perfect negotiation sample code verbatim.
     // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
     const pc = this;
     const signaling = this.#signaling;

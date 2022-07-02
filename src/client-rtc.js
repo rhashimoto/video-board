@@ -45,7 +45,6 @@ class ClientRTC extends LitElement {
   #nonce = null;
 
   static properties = {
-    peerId: { attribute: null },
     peers: { attribute: null }
   }
 
@@ -82,7 +81,7 @@ class ClientRTC extends LitElement {
 
   async #handleMessage(message) {
     if (this.#nonce !== null && this.#nonce !== message.nonce) {
-      // TODO: Tear down existing connection.
+      this.#destroyPeerConnection();
     }
     this.#nonce = message.nonce;
 
@@ -98,24 +97,21 @@ class ClientRTC extends LitElement {
       const peerSelector = this.shadowRoot.getElementById('peer-selector');
       this.#peerConnection = this.#createPeerConnection(peerSelector['value']);
     }
-    this.#addLocalMedia();
   }
 
-  async #addLocalMedia() {
-    if (!this.#peerConnection.hasLocalMedia()) {
-      const mediaStream = await this.#peerConnection.addMediaStream(MEDIA_CONSTRAINTS);
-      const localView = /** @type {HTMLVideoElement} */
-        (this.shadowRoot.getElementById('local'));
-      if (!localView.srcObject) {
-        localView.srcObject = mediaStream;
-      }
-    }
+  async #stop() {
+    this.#destroyPeerConnection();
   }
 
   #createPeerConnection(dst) {
     const peerConnection = new PeerConnection(RTC_CONFIG, {
       polite: this.#uid < dst,
       remoteView: this.shadowRoot.getElementById('remote')
+    });
+    peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
+      const localView = /** @type {HTMLVideoElement} */
+        (this.shadowRoot.getElementById('local'));
+      localView.srcObject = mediaStream;
     });
     peerConnection.addEventListener('message', async event => {
       await this.#ready;
@@ -127,12 +123,29 @@ class ClientRTC extends LitElement {
       };
       await push(ref(this.#database, `/users/${dst}/inbox`), message);
     });
-    peerConnection.addEventListener('signalingstatechange', () => {
-      if (peerConnection.signalingState === 'have-remote-offer') {
-        this.#addLocalMedia();
+
+    peerConnection.addEventListener('iceconnectionstatechange', () => {
+      if (peerConnection.iceConnectionState === 'disconnected') {
+        console.log('ice disconnected');
+        this.#destroyPeerConnection();
       }
     });
     return peerConnection;
+  }
+
+  #destroyPeerConnection() {
+    if (this.#peerConnection) {
+      this.#peerConnection.close();
+      this.#peerConnection = null;
+      this.#nonce = null;
+
+      this.shadowRoot.querySelectorAll('video').forEach(video => {
+        if (video.srcObject instanceof MediaStream) {
+          video.srcObject.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+      });
+    }
   }
 
   static get styles() {
@@ -161,6 +174,7 @@ class ClientRTC extends LitElement {
           })}
         </select>
         <button @click=${this.#start}>Call</button>
+        <button @click=${this.#stop}>Stop</button>
       </div>
       <video id="local" autoplay muted></video>
       <video id="remote" autoplay></video>
