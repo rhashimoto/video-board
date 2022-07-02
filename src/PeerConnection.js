@@ -16,26 +16,15 @@ export class PeerConnection extends RTCPeerConnection {
 
   /**
    * @param {RTCConfiguration} config 
-   * @param {{polite: boolean, remoteView: HTMLElement}} options
+   * @param {boolean} polite
    */
-  constructor(config, options) {
+  constructor(config, polite) {
     super(config);
 
     // Adapt to use WebRTC perfect negotiation sample code verbatim.
     // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
     const pc = this;
     const signaling = this.#signaling;
-    const polite = options.polite;
-    const remoteView = /** @type {HTMLVideoElement} */ (options.remoteView ?? {});
-
-    pc.ontrack = ({track, streams}) => {
-      // once media for a remote track arrives, show it in the remote video element
-      track.onunmute = () => {
-        // don't set srcObject again if it is already set.
-        if (remoteView.srcObject) return;
-        remoteView.srcObject = streams[0];
-      };
-    };
 
     // - The perfect negotiation logic, separated from the rest of the application ---
     
@@ -93,16 +82,6 @@ export class PeerConnection extends RTCPeerConnection {
         console.error(err);
       }
     }
-
-    // this.#dataChannelReady = new Promise(resolve => {
-    //   const dataChannel = this.createDataChannel('chat', {
-    //     negotiated: true,
-    //     id: 0
-    //   });
-    //   dataChannel.addEventListener('open', () => {
-    //     resolve(dataChannel);
-    //   }, { once: true });
-    // });
   }
 
   postMessage(data) {

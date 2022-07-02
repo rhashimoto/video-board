@@ -43,6 +43,7 @@ class ClientRTC extends LitElement {
   // Call state.
   /** @type {PeerConnection} */ #peerConnection = null;
   #nonce = null;
+  #timeoutId;
 
   static properties = {
     peers: { attribute: null }
@@ -79,22 +80,21 @@ class ClientRTC extends LitElement {
   }
 
   async #handleMessage(message) {
-    if (this.#nonce !== null && this.#nonce !== message.nonce) {
-      this.#destroyPeerConnection();
+    if (this.#nonce === null || this.#nonce === message.nonce) {
+      // Create the connection if necessary.
+      if (!this.#peerConnection) {
+        this.#nonce = message.nonce;
+        this.#peerConnection = this.#createPeerConnection(message.src);
+      }
+      this.#peerConnection.postMessage(message.data);
     }
-    this.#nonce = message.nonce;
-
-    // Create the connection if necessary.
-    if (!this.#peerConnection) {
-      this.#peerConnection = this.#createPeerConnection(message.src);
-    }
-    this.#peerConnection.postMessage(message.data);
   }
 
   async #start() {
     if (!this.#peerConnection) {
       const peerSelector = this.shadowRoot.getElementById('peer-selector');
-      this.#peerConnection = this.#createPeerConnection(peerSelector['value']);
+      // @ts-ignore
+      this.#peerConnection = this.#createPeerConnection(peerSelector.value);
     }
   }
 
@@ -103,15 +103,21 @@ class ClientRTC extends LitElement {
   }
 
   #createPeerConnection(dst) {
-    const peerConnection = new PeerConnection(RTC_CONFIG, {
-      polite: this.#uid < dst,
-      remoteView: this.shadowRoot.getElementById('remote')
-    });
+    const primary = this.#uid < dst;
+    const peerConnection = new PeerConnection(RTC_CONFIG, primary);
+
+    // Display local and remote video.
     peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
-      const localView = /** @type {HTMLVideoElement} */
-        (this.shadowRoot.getElementById('local'));
-      localView.srcObject = mediaStream;
+      const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('local'));
+      view.srcObject = mediaStream;
     });
+    peerConnection.addEventListener('track', ({track, streams}) => {
+      const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('remote'));
+      track.addEventListener('unmute', () => {
+        view.srcObject = streams[0];
+      }, { once: true });
+    });
+
     peerConnection.addEventListener('message', async event => {
       await this.#ready;
       const message = {
@@ -123,16 +129,42 @@ class ClientRTC extends LitElement {
       await push(ref(this.#database, `/users/${dst}/inbox`), message);
     });
 
-    peerConnection.addEventListener('iceconnectionstatechange', () => {
-      if (peerConnection.iceConnectionState === 'disconnected') {
-        console.log('ice disconnected');
-        this.#destroyPeerConnection();
-      }
+    // Tear down the connection on timeout.
+    const scheduleDisconnect = () => {
+      clearTimeout(this.#timeoutId);
+      this.#timeoutId = setTimeout(() => this.#destroyPeerConnection(), TIMEOUT_MILLIS);
+    }
+    scheduleDisconnect();
+
+    // Send keepalive pings over a data channel to reset the timeout.
+    Promise.resolve().then(async () => {
+      // Create the channel on one side, get notified on the other.
+      const dataChannel = primary ?
+        peerConnection.createDataChannel('keepalive') :
+        await new Promise(resolve => {
+          peerConnection.addEventListener('datachannel', ({channel}) => {
+            if (channel.label === 'keepalive') {
+              resolve(channel);
+            }
+          });
+        });
+      
+      dataChannel.addEventListener('open', () => {
+        // Start pinging.
+        const pingId = setInterval(() => dataChannel.send('ping'), TIMEOUT_MILLIS / 4);
+        dataChannel.addEventListener('close', () => {
+          clearInterval(pingId);
+          this.#destroyPeerConnection();
+        });
+      });
+      dataChannel.addEventListener('message', scheduleDisconnect);
     });
+
     return peerConnection;
   }
 
   #destroyPeerConnection() {
+    clearTimeout(this.#timeoutId);
     if (this.#peerConnection) {
       this.#peerConnection.close();
       this.#peerConnection = null;
