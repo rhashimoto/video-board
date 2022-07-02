@@ -98,7 +98,10 @@ class ClientRTC extends LitElement {
       const peerSelector = this.shadowRoot.getElementById('peer-selector');
       this.#peerConnection = this.#createPeerConnection(peerSelector['value']);
     }
+    this.#addLocalMedia();
+  }
 
+  async #addLocalMedia() {
     if (!this.#peerConnection.hasLocalMedia()) {
       const mediaStream = await this.#peerConnection.addMediaStream(MEDIA_CONSTRAINTS);
       const localView = /** @type {HTMLVideoElement} */
@@ -124,7 +127,11 @@ class ClientRTC extends LitElement {
       };
       await push(ref(this.#database, `/users/${dst}/inbox`), message);
     });
-
+    peerConnection.addEventListener('signalingstatechange', () => {
+      if (peerConnection.signalingState === 'have-remote-offer') {
+        this.#addLocalMedia();
+      }
+    });
     return peerConnection;
   }
 
