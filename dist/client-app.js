@@ -25259,7 +25259,8 @@
 
     static properties = {
       peers: { attribute: null },
-      hideControls: { attribute: 'hide-controls', type: Boolean }
+      hideControls: { attribute: 'hide-controls', type: Boolean },
+      isMediaAdded: { attribute: null }
     }
 
     constructor() {
@@ -25267,6 +25268,7 @@
       this.#ready = this.#initialize();
       this.peers = {};
       this.hideControls = false;
+      this.isMediaAdded = false;
     }
 
     async #initialize() {
@@ -25328,6 +25330,7 @@
         const peerSelector = this.shadowRoot.getElementById('peer-selector');
         // @ts-ignore
         this.#peerConnection = this.#createPeerConnection(peerSelector.value);
+        this.#addUserMedia();
       }
     }
 
@@ -25340,18 +25343,6 @@
       const peerConnection = new PeerConnection(RTC_CONFIG, primary);
       this.dispatchEvent(new CustomEvent('beginConnection'));
 
-      // Display local and remote video.
-      peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
-        const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('local'));
-        view.srcObject = mediaStream;
-      });
-      peerConnection.addEventListener('track', ({track, streams}) => {
-        const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('remote'));
-        track.addEventListener('unmute', () => {
-          view.srcObject = streams[0];
-        }, { once: true });
-      });
-
       peerConnection.addEventListener('message', async event => {
         await this.#ready;
         const message = {
@@ -25361,6 +25352,14 @@
           data: event['data']
         };
         await push(ref(this.#database, `/users/${dst}/inbox`), message);
+      });
+
+      // Display remote video when it arrives.
+      peerConnection.addEventListener('track', ({track, streams}) => {
+        const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('remote'));
+        track.addEventListener('unmute', () => {
+          view.srcObject = streams[0];
+        }, { once: true });
       });
 
       // Tear down the connection on timeout.
@@ -25411,10 +25410,21 @@
             video.srcObject = null;
           }
         });
+        this.isMediaAdded = false;
 
         this.shadowRoot.querySelectorAll('#caption-container *').forEach(element => {
           element.remove();
         });
+      }
+    }
+
+    #addUserMedia() {
+      if (this.#peerConnection && !this.isMediaAdded) {
+        this.#peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
+          const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('local'));
+          view.srcObject = mediaStream;
+        });
+        this.isMediaAdded = true;
       }
     }
 
@@ -25472,6 +25482,17 @@
         flex: 0px 1 1;
       }
 
+      .answer-container {
+        display: flex;
+        flex: 0px 1 1;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #answer-button {
+        font-size: 6vh;
+      }
+
       #caption-container {
         display: flex;
         flex-direction: column-reverse;
@@ -25505,7 +25526,13 @@
       </div>
       <div id="video-container">
         <video id="remote" autoplay></video>
-        <video id="local" autoplay muted></video>
+        <video id="local" autoplay muted
+          class="${this.isMediaAdded ? '' : 'hidden'}">
+        </video>
+        <div class="answer-container
+          ${this.isMediaAdded || !this.hideControls ? 'hidden' : ''}">
+          <button id="answer-button" @click=${this.#addUserMedia}>Answer Call</button>
+        </div>
       </div>
       <div id="caption-container"></div>
     `;
