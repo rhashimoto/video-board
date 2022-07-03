@@ -6,7 +6,7 @@ import './client-rtc.js';
 
 class ClientApp extends LitElement {
   static properties = {
-    isCallActive: { attribute: null },
+    isRTCActive: { attribute: null },
     timestamp: { attribute: null },
     dateString: { attribute: null },
     timeString: { attribute: null },
@@ -14,7 +14,7 @@ class ClientApp extends LitElement {
 
   constructor() {
     super();
-    this.isCallActive = false;
+    this.isRTCActive = false;
     this.#updateDateTime();
 
     // Reload page if Google APIs did not initialize properly.
@@ -25,6 +25,17 @@ class ClientApp extends LitElement {
       if (!gapi) {
         window.location.reload();
       }
+    });
+  }
+
+  firstUpdated() {
+    // Switch to WebRTC tab when in a call.
+    const rtc = this.shadowRoot.querySelector('client-rtc');
+    rtc.addEventListener('beginConnection', () => {
+      this.isRTCActive = true;      
+    });
+    rtc.addEventListener('endConnection', () => {
+      this.isRTCActive = false;      
     });
   }
 
@@ -71,8 +82,8 @@ class ClientApp extends LitElement {
         <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-rtc class="${this.isCallActive ? '' : 'hidden'}" hide-controls></client-rtc>
-        <client-calendar class="${this.isCallActive ? 'hidden' : ''}"
+        <client-rtc class="${this.isRTCActive ? '' : 'hidden'}" hide-controls></client-rtc>
+        <client-calendar class="${this.isRTCActive ? 'hidden' : ''}"
           .timestamp=${this.timestamp}>
         </client-calendar>
       </div>

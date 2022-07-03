@@ -126,6 +126,7 @@ class ClientRTC extends LitElement {
   #createPeerConnection(dst) {
     const primary = this.#uid < dst;
     const peerConnection = new PeerConnection(RTC_CONFIG, primary);
+    this.dispatchEvent(new CustomEvent('beginConnection'));
 
     // Display local and remote video.
     peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
@@ -190,6 +191,7 @@ class ClientRTC extends LitElement {
       this.#peerConnection.close();
       this.#peerConnection = null;
       this.#nonce = null;
+      this.dispatchEvent(new CustomEvent('endConnection'));
 
       this.shadowRoot.querySelectorAll('video').forEach(video => {
         if (video.srcObject instanceof MediaStream) {

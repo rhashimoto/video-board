@@ -25338,6 +25338,7 @@
     #createPeerConnection(dst) {
       const primary = this.#uid < dst;
       const peerConnection = new PeerConnection(RTC_CONFIG, primary);
+      this.dispatchEvent(new CustomEvent('beginConnection'));
 
       // Display local and remote video.
       peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
@@ -25402,6 +25403,7 @@
         this.#peerConnection.close();
         this.#peerConnection = null;
         this.#nonce = null;
+        this.dispatchEvent(new CustomEvent('endConnection'));
 
         this.shadowRoot.querySelectorAll('video').forEach(video => {
           if (video.srcObject instanceof MediaStream) {
@@ -25522,7 +25524,7 @@
 
   class ClientApp extends s$1 {
     static properties = {
-      isCallActive: { attribute: null },
+      isRTCActive: { attribute: null },
       timestamp: { attribute: null },
       dateString: { attribute: null },
       timeString: { attribute: null },
@@ -25530,7 +25532,7 @@
 
     constructor() {
       super();
-      this.isCallActive = false;
+      this.isRTCActive = false;
       this.#updateDateTime();
 
       // Reload page if Google APIs did not initialize properly.
@@ -25541,6 +25543,17 @@
         if (!gapi) {
           window.location.reload();
         }
+      });
+    }
+
+    firstUpdated() {
+      // Switch to WebRTC tab when in a call.
+      const rtc = this.shadowRoot.querySelector('client-rtc');
+      rtc.addEventListener('beginConnection', () => {
+        this.isRTCActive = true;      
+      });
+      rtc.addEventListener('endConnection', () => {
+        this.isRTCActive = false;      
       });
     }
 
@@ -25587,8 +25600,8 @@
         <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-rtc class="${this.isCallActive ? '' : 'hidden'}" hide-controls></client-rtc>
-        <client-calendar class="${this.isCallActive ? 'hidden' : ''}"
+        <client-rtc class="${this.isRTCActive ? '' : 'hidden'}" hide-controls></client-rtc>
+        <client-calendar class="${this.isRTCActive ? 'hidden' : ''}"
           .timestamp=${this.timestamp}>
         </client-calendar>
       </div>
