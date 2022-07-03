@@ -2,9 +2,11 @@ import { css, html, LitElement } from 'lit';
 
 import { getGAPI } from './gapi.js';
 import './client-calendar.js';
+import './client-rtc.js';
 
 class ClientApp extends LitElement {
   static properties = {
+    isCallActive: { attribute: null },
     timestamp: { attribute: null },
     dateString: { attribute: null },
     timeString: { attribute: null },
@@ -12,6 +14,7 @@ class ClientApp extends LitElement {
 
   constructor() {
     super();
+    this.isCallActive = false;
     this.#updateDateTime();
 
     // Reload page if Google APIs did not initialize properly.
@@ -54,6 +57,10 @@ class ClientApp extends LitElement {
       #container {
         flex: auto 1 1;
       }
+
+      .hidden {
+        display: none;
+      }
     `;
   }
 
@@ -64,7 +71,10 @@ class ClientApp extends LitElement {
         <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-calendar .timestamp=${this.timestamp}></client-calendar>
+        <client-rtc class="${this.isCallActive ? '' : 'hidden'}" hide-controls></client-rtc>
+        <client-calendar class="${this.isCallActive ? 'hidden' : ''}"
+          .timestamp=${this.timestamp}>
+        </client-calendar>
       </div>
     `;
   }

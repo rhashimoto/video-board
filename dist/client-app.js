@@ -10900,7 +10900,7 @@
       return dbPromise;
   }
   /** Assigns or overwrites the record for the given key with the given value. */
-  async function set(appConfig, value) {
+  async function set$1(appConfig, value) {
       const key = getKey(appConfig);
       const db = await getDbPromise();
       const tx = db.transaction(OBJECT_STORE_NAME, 'readwrite');
@@ -10914,7 +10914,7 @@
       return value;
   }
   /** Removes record(s) from the objectStore that match the given key. */
-  async function remove(appConfig) {
+  async function remove$1(appConfig) {
       const key = getKey(appConfig);
       const db = await getDbPromise();
       const tx = db.transaction(OBJECT_STORE_NAME, 'readwrite');
@@ -11035,17 +11035,17 @@
   async function registerInstallation(installations, installationEntry) {
       try {
           const registeredInstallationEntry = await createInstallationRequest(installations, installationEntry);
-          return set(installations.appConfig, registeredInstallationEntry);
+          return set$1(installations.appConfig, registeredInstallationEntry);
       }
       catch (e) {
           if (isServerError(e) && e.customData.serverCode === 409) {
               // Server returned a "FID can not be used" error.
               // Generate a new ID next time.
-              await remove(installations.appConfig);
+              await remove$1(installations.appConfig);
           }
           else {
               // Registration failed. Set FID as not registered.
-              await set(installations.appConfig, {
+              await set$1(installations.appConfig, {
                   fid: installationEntry.fid,
                   registrationStatus: 0 /* NOT_STARTED */
               });
@@ -11263,7 +11263,7 @@
       try {
           const authToken = await generateAuthTokenRequest(installations, installationEntry);
           const updatedInstallationEntry = Object.assign(Object.assign({}, installationEntry), { authToken });
-          await set(installations.appConfig, updatedInstallationEntry);
+          await set$1(installations.appConfig, updatedInstallationEntry);
           return authToken;
       }
       catch (e) {
@@ -11271,11 +11271,11 @@
               (e.customData.serverCode === 401 || e.customData.serverCode === 404)) {
               // Server returned a "FID not found" or a "Invalid authentication" error.
               // Generate a new ID next time.
-              await remove(installations.appConfig);
+              await remove$1(installations.appConfig);
           }
           else {
               const updatedInstallationEntry = Object.assign(Object.assign({}, installationEntry), { authToken: { requestStatus: 0 /* NOT_STARTED */ } });
-              await set(installations.appConfig, updatedInstallationEntry);
+              await set$1(installations.appConfig, updatedInstallationEntry);
           }
           throw e;
       }
@@ -12982,6 +12982,27 @@
       // Check for the presence of a couple WinRT globals
       return typeof Windows === 'object' && typeof Windows.UI === 'object';
   };
+  /**
+   * Converts a server error code to a Javascript Error
+   */
+  function errorForServerCode(code, query) {
+      let reason = 'Unknown Error';
+      if (code === 'too_big') {
+          reason =
+              'The data requested exceeds the maximum size ' +
+                  'that can be accessed with a single request.';
+      }
+      else if (code === 'permission_denied') {
+          reason = "Client doesn't have permission to access the desired data.";
+      }
+      else if (code === 'unavailable') {
+          reason = 'The service is unavailable';
+      }
+      const error = new Error(code + ' at ' + query._path.toString() + ': ' + reason);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      error.code = code.toUpperCase();
+      return error;
+  }
   /**
    * Used to test for integer-looking strings
    */
@@ -18300,6 +18321,81 @@
    * See the License for the specific language governing permissions and
    * limitations under the License.
    */
+  // Modeled after base64 web-safe chars, but ordered by ASCII.
+  const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+  /**
+   * Fancy ID generator that creates 20-character string identifiers with the
+   * following properties:
+   *
+   * 1. They're based on timestamp so that they sort *after* any existing ids.
+   * 2. They contain 72-bits of random data after the timestamp so that IDs won't
+   *    collide with other clients' IDs.
+   * 3. They sort *lexicographically* (so the timestamp is converted to characters
+   *    that will sort properly).
+   * 4. They're monotonically increasing. Even if you generate more than one in
+   *    the same timestamp, the latter ones will sort after the former ones. We do
+   *    this by using the previous random bits but "incrementing" them by 1 (only
+   *    in the case of a timestamp collision).
+   */
+  const nextPushId = (function () {
+      // Timestamp of last push, used to prevent local collisions if you push twice
+      // in one ms.
+      let lastPushTime = 0;
+      // We generate 72-bits of randomness which get turned into 12 characters and
+      // appended to the timestamp to prevent collisions with other clients. We
+      // store the last characters we generated because in the event of a collision,
+      // we'll use those same characters except "incremented" by one.
+      const lastRandChars = [];
+      return function (now) {
+          const duplicateTime = now === lastPushTime;
+          lastPushTime = now;
+          let i;
+          const timeStampChars = new Array(8);
+          for (i = 7; i >= 0; i--) {
+              timeStampChars[i] = PUSH_CHARS.charAt(now % 64);
+              // NOTE: Can't use << here because javascript will convert to int and lose
+              // the upper bits.
+              now = Math.floor(now / 64);
+          }
+          assert(now === 0, 'Cannot push at time == 0');
+          let id = timeStampChars.join('');
+          if (!duplicateTime) {
+              for (i = 0; i < 12; i++) {
+                  lastRandChars[i] = Math.floor(Math.random() * 64);
+              }
+          }
+          else {
+              // If the timestamp hasn't changed since last push, use the same random
+              // number, except incremented by 1.
+              for (i = 11; i >= 0 && lastRandChars[i] === 63; i--) {
+                  lastRandChars[i] = 0;
+              }
+              lastRandChars[i]++;
+          }
+          for (i = 0; i < 12; i++) {
+              id += PUSH_CHARS.charAt(lastRandChars[i]);
+          }
+          assert(id.length === 20, 'nextPushId: Length should be 20.');
+          return id;
+      };
+  })();
+
+  /**
+   * @license
+   * Copyright 2017 Google LLC
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *   http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
   function changeValue(snapshotNode) {
       return { type: "value" /* VALUE */, snapshotNode };
   }
@@ -19450,6 +19546,39 @@
           else {
               const childTree = this.affectedTree.subtree(new Path(childName));
               return new AckUserWrite(newEmptyPath(), childTree, this.revert);
+          }
+      }
+  }
+
+  /**
+   * @license
+   * Copyright 2017 Google LLC
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *   http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+  class ListenComplete {
+      constructor(source, path) {
+          this.source = source;
+          this.path = path;
+          /** @inheritDoc */
+          this.type = OperationType.LISTEN_COMPLETE;
+      }
+      operationForChild(childName) {
+          if (pathIsEmpty(this.path)) {
+              return new ListenComplete(this.source, newEmptyPath());
+          }
+          else {
+              return new ListenComplete(this.source, pathPopFront(this.path));
           }
       }
   }
@@ -21303,6 +21432,9 @@
           return this.query_;
       }
   }
+  function viewGetServerCache(view) {
+      return view.viewCache_.serverCache.getNode();
+  }
   function viewGetCompleteNode(view) {
       return viewCacheGetCompleteEventSnap(view.viewCache_);
   }
@@ -21318,6 +21450,49 @@
           }
       }
       return null;
+  }
+  function viewIsEmpty(view) {
+      return view.eventRegistrations_.length === 0;
+  }
+  function viewAddEventRegistration(view, eventRegistration) {
+      view.eventRegistrations_.push(eventRegistration);
+  }
+  /**
+   * @param eventRegistration - If null, remove all callbacks.
+   * @param cancelError - If a cancelError is provided, appropriate cancel events will be returned.
+   * @returns Cancel events, if cancelError was provided.
+   */
+  function viewRemoveEventRegistration(view, eventRegistration, cancelError) {
+      const cancelEvents = [];
+      if (cancelError) {
+          assert(eventRegistration == null, 'A cancel should cancel all event registrations.');
+          const path = view.query._path;
+          view.eventRegistrations_.forEach(registration => {
+              const maybeEvent = registration.createCancelEvent(cancelError, path);
+              if (maybeEvent) {
+                  cancelEvents.push(maybeEvent);
+              }
+          });
+      }
+      if (eventRegistration) {
+          let remaining = [];
+          for (let i = 0; i < view.eventRegistrations_.length; ++i) {
+              const existing = view.eventRegistrations_[i];
+              if (!existing.matches(eventRegistration)) {
+                  remaining.push(existing);
+              }
+              else if (eventRegistration.hasAnyCallback()) {
+                  // We're removing just this one
+                  remaining = remaining.concat(view.eventRegistrations_.slice(i + 1));
+                  break;
+              }
+          }
+          view.eventRegistrations_ = remaining;
+      }
+      else {
+          view.eventRegistrations_ = [];
+      }
+      return cancelEvents;
   }
   /**
    * Applies the given Operation, updates our cache, and returns the appropriate events.
@@ -21335,6 +21510,20 @@
           !oldViewCache.serverCache.isFullyInitialized(), 'Once a server snap is complete, it should never go back');
       view.viewCache_ = result.viewCache;
       return viewGenerateEventsForChanges_(view, result.changes, result.viewCache.eventCache.getNode(), null);
+  }
+  function viewGetInitialEvents(view, registration) {
+      const eventSnap = view.viewCache_.eventCache;
+      const initialChanges = [];
+      if (!eventSnap.getNode().isLeafNode()) {
+          const eventNode = eventSnap.getNode();
+          eventNode.forEachChild(PRIORITY_INDEX, (key, childNode) => {
+              initialChanges.push(changeChildAdded(key, childNode));
+          });
+      }
+      if (eventSnap.isFullyInitialized()) {
+          initialChanges.push(changeValue(eventSnap.getNode()));
+      }
+      return viewGenerateEventsForChanges_(view, initialChanges, eventSnap.getNode(), registration);
   }
   function viewGenerateEventsForChanges_(view, changes, eventCache, eventRegistration) {
       const registrations = eventRegistration
@@ -21385,6 +21574,13 @@
       assert(!referenceConstructor$1, '__referenceConstructor has already been defined');
       referenceConstructor$1 = val;
   }
+  function syncPointGetReferenceConstructor() {
+      assert(referenceConstructor$1, 'Reference.ts has not been loaded');
+      return referenceConstructor$1;
+  }
+  function syncPointIsEmpty(syncPoint) {
+      return syncPoint.views.size === 0;
+  }
   function syncPointApplyOperation(syncPoint, operation, writesCache, optCompleteServerCache) {
       const queryId = operation.source.queryId;
       if (queryId !== null) {
@@ -21433,6 +21629,82 @@
       return view;
   }
   /**
+   * Add an event callback for the specified query.
+   *
+   * @param query
+   * @param eventRegistration
+   * @param writesCache
+   * @param serverCache - Complete server cache, if we have it.
+   * @param serverCacheComplete
+   * @returns Events to raise.
+   */
+  function syncPointAddEventRegistration(syncPoint, query, eventRegistration, writesCache, serverCache, serverCacheComplete) {
+      const view = syncPointGetView(syncPoint, query, writesCache, serverCache, serverCacheComplete);
+      if (!syncPoint.views.has(query._queryIdentifier)) {
+          syncPoint.views.set(query._queryIdentifier, view);
+      }
+      // This is guaranteed to exist now, we just created anything that was missing
+      viewAddEventRegistration(view, eventRegistration);
+      return viewGetInitialEvents(view, eventRegistration);
+  }
+  /**
+   * Remove event callback(s).  Return cancelEvents if a cancelError is specified.
+   *
+   * If query is the default query, we'll check all views for the specified eventRegistration.
+   * If eventRegistration is null, we'll remove all callbacks for the specified view(s).
+   *
+   * @param eventRegistration - If null, remove all callbacks.
+   * @param cancelError - If a cancelError is provided, appropriate cancel events will be returned.
+   * @returns removed queries and any cancel events
+   */
+  function syncPointRemoveEventRegistration(syncPoint, query, eventRegistration, cancelError) {
+      const queryId = query._queryIdentifier;
+      const removed = [];
+      let cancelEvents = [];
+      const hadCompleteView = syncPointHasCompleteView(syncPoint);
+      if (queryId === 'default') {
+          // When you do ref.off(...), we search all views for the registration to remove.
+          for (const [viewQueryId, view] of syncPoint.views.entries()) {
+              cancelEvents = cancelEvents.concat(viewRemoveEventRegistration(view, eventRegistration, cancelError));
+              if (viewIsEmpty(view)) {
+                  syncPoint.views.delete(viewQueryId);
+                  // We'll deal with complete views later.
+                  if (!view.query._queryParams.loadsAllData()) {
+                      removed.push(view.query);
+                  }
+              }
+          }
+      }
+      else {
+          // remove the callback from the specific view.
+          const view = syncPoint.views.get(queryId);
+          if (view) {
+              cancelEvents = cancelEvents.concat(viewRemoveEventRegistration(view, eventRegistration, cancelError));
+              if (viewIsEmpty(view)) {
+                  syncPoint.views.delete(queryId);
+                  // We'll deal with complete views later.
+                  if (!view.query._queryParams.loadsAllData()) {
+                      removed.push(view.query);
+                  }
+              }
+          }
+      }
+      if (hadCompleteView && !syncPointHasCompleteView(syncPoint)) {
+          // We removed our last complete view.
+          removed.push(new (syncPointGetReferenceConstructor())(query._repo, query._path));
+      }
+      return { removed, events: cancelEvents };
+  }
+  function syncPointGetQueryViews(syncPoint) {
+      const result = [];
+      for (const view of syncPoint.views.values()) {
+          if (!view.query._queryParams.loadsAllData()) {
+              result.push(view);
+          }
+      }
+      return result;
+  }
+  /**
    * @param path - The path to the desired complete snapshot
    * @returns A complete cache, if it exists
    */
@@ -21442,6 +21714,30 @@
           serverCache = serverCache || viewGetCompleteServerCache(view, path);
       }
       return serverCache;
+  }
+  function syncPointViewForQuery(syncPoint, query) {
+      const params = query._queryParams;
+      if (params.loadsAllData()) {
+          return syncPointGetCompleteView(syncPoint);
+      }
+      else {
+          const queryId = query._queryIdentifier;
+          return syncPoint.views.get(queryId);
+      }
+  }
+  function syncPointViewExistsForQuery(syncPoint, query) {
+      return syncPointViewForQuery(syncPoint, query) != null;
+  }
+  function syncPointHasCompleteView(syncPoint) {
+      return syncPointGetCompleteView(syncPoint) != null;
+  }
+  function syncPointGetCompleteView(syncPoint) {
+      for (const view of syncPoint.views.values()) {
+          if (view.query._queryParams.loadsAllData()) {
+              return view;
+          }
+      }
+      return null;
   }
 
   /**
@@ -21465,6 +21761,14 @@
       assert(!referenceConstructor, '__referenceConstructor has already been defined');
       referenceConstructor = val;
   }
+  function syncTreeGetReferenceConstructor() {
+      assert(referenceConstructor, 'Reference.ts has not been loaded');
+      return referenceConstructor;
+  }
+  /**
+   * Static tracker for next query tag.
+   */
+  let syncTreeNextQueryTag_ = 1;
   /**
    * SyncTree is the central class for managing event callback registration, data caching, views
    * (query processing), and event generation.  There are typically two SyncTree instances for
@@ -21564,6 +21868,109 @@
       return syncTreeApplyOperationToSyncPoints_(syncTree, new Merge(newOperationSourceServer(), path, changeTree));
   }
   /**
+   * Apply a listen complete for a query
+   *
+   * @returns Events to raise.
+   */
+  function syncTreeApplyListenComplete(syncTree, path) {
+      return syncTreeApplyOperationToSyncPoints_(syncTree, new ListenComplete(newOperationSourceServer(), path));
+  }
+  /**
+   * Apply a listen complete for a tagged query
+   *
+   * @returns Events to raise.
+   */
+  function syncTreeApplyTaggedListenComplete(syncTree, path, tag) {
+      const queryKey = syncTreeQueryKeyForTag_(syncTree, tag);
+      if (queryKey) {
+          const r = syncTreeParseQueryKey_(queryKey);
+          const queryPath = r.path, queryId = r.queryId;
+          const relativePath = newRelativePath(queryPath, path);
+          const op = new ListenComplete(newOperationSourceServerTaggedQuery(queryId), relativePath);
+          return syncTreeApplyTaggedOperation_(syncTree, queryPath, op);
+      }
+      else {
+          // We've already removed the query. No big deal, ignore the update
+          return [];
+      }
+  }
+  /**
+   * Remove event callback(s).
+   *
+   * If query is the default query, we'll check all queries for the specified eventRegistration.
+   * If eventRegistration is null, we'll remove all callbacks for the specified query/queries.
+   *
+   * @param eventRegistration - If null, all callbacks are removed.
+   * @param cancelError - If a cancelError is provided, appropriate cancel events will be returned.
+   * @returns Cancel events, if cancelError was provided.
+   */
+  function syncTreeRemoveEventRegistration(syncTree, query, eventRegistration, cancelError) {
+      // Find the syncPoint first. Then deal with whether or not it has matching listeners
+      const path = query._path;
+      const maybeSyncPoint = syncTree.syncPointTree_.get(path);
+      let cancelEvents = [];
+      // A removal on a default query affects all queries at that location. A removal on an indexed query, even one without
+      // other query constraints, does *not* affect all queries at that location. So this check must be for 'default', and
+      // not loadsAllData().
+      if (maybeSyncPoint &&
+          (query._queryIdentifier === 'default' ||
+              syncPointViewExistsForQuery(maybeSyncPoint, query))) {
+          const removedAndEvents = syncPointRemoveEventRegistration(maybeSyncPoint, query, eventRegistration, cancelError);
+          if (syncPointIsEmpty(maybeSyncPoint)) {
+              syncTree.syncPointTree_ = syncTree.syncPointTree_.remove(path);
+          }
+          const removed = removedAndEvents.removed;
+          cancelEvents = removedAndEvents.events;
+          // We may have just removed one of many listeners and can short-circuit this whole process
+          // We may also not have removed a default listener, in which case all of the descendant listeners should already be
+          // properly set up.
+          //
+          // Since indexed queries can shadow if they don't have other query constraints, check for loadsAllData(), instead of
+          // queryId === 'default'
+          const removingDefault = -1 !==
+              removed.findIndex(query => {
+                  return query._queryParams.loadsAllData();
+              });
+          const covered = syncTree.syncPointTree_.findOnPath(path, (relativePath, parentSyncPoint) => syncPointHasCompleteView(parentSyncPoint));
+          if (removingDefault && !covered) {
+              const subtree = syncTree.syncPointTree_.subtree(path);
+              // There are potentially child listeners. Determine what if any listens we need to send before executing the
+              // removal
+              if (!subtree.isEmpty()) {
+                  // We need to fold over our subtree and collect the listeners to send
+                  const newViews = syncTreeCollectDistinctViewsForSubTree_(subtree);
+                  // Ok, we've collected all the listens we need. Set them up.
+                  for (let i = 0; i < newViews.length; ++i) {
+                      const view = newViews[i], newQuery = view.query;
+                      const listener = syncTreeCreateListenerForView_(syncTree, view);
+                      syncTree.listenProvider_.startListening(syncTreeQueryForListening_(newQuery), syncTreeTagForQuery_(syncTree, newQuery), listener.hashFn, listener.onComplete);
+                  }
+              }
+          }
+          // If we removed anything and we're not covered by a higher up listen, we need to stop listening on this query
+          // The above block has us covered in terms of making sure we're set up on listens lower in the tree.
+          // Also, note that if we have a cancelError, it's already been removed at the provider level.
+          if (!covered && removed.length > 0 && !cancelError) {
+              // If we removed a default, then we weren't listening on any of the other queries here. Just cancel the one
+              // default. Otherwise, we need to iterate through and cancel each individual query
+              if (removingDefault) {
+                  // We don't tag default listeners
+                  const defaultTag = null;
+                  syncTree.listenProvider_.stopListening(syncTreeQueryForListening_(query), defaultTag);
+              }
+              else {
+                  removed.forEach((queryToRemove) => {
+                      const tagToRemove = syncTree.queryToTagMap.get(syncTreeMakeQueryKey_(queryToRemove));
+                      syncTree.listenProvider_.stopListening(syncTreeQueryForListening_(queryToRemove), tagToRemove);
+                  });
+              }
+          }
+          // Now, clear all of the tags we're tracking for the removed listens
+          syncTreeRemoveTags_(syncTree, removed);
+      }
+      return cancelEvents;
+  }
+  /**
    * Apply new server data for the specified tagged query.
    *
    * @returns Events to raise.
@@ -21601,6 +22008,67 @@
           // We've already removed the query. No big deal, ignore the update
           return [];
       }
+  }
+  /**
+   * Add an event callback for the specified query.
+   *
+   * @returns Events to raise.
+   */
+  function syncTreeAddEventRegistration(syncTree, query, eventRegistration) {
+      const path = query._path;
+      let serverCache = null;
+      let foundAncestorDefaultView = false;
+      // Any covering writes will necessarily be at the root, so really all we need to find is the server cache.
+      // Consider optimizing this once there's a better understanding of what actual behavior will be.
+      syncTree.syncPointTree_.foreachOnPath(path, (pathToSyncPoint, sp) => {
+          const relativePath = newRelativePath(pathToSyncPoint, path);
+          serverCache =
+              serverCache || syncPointGetCompleteServerCache(sp, relativePath);
+          foundAncestorDefaultView =
+              foundAncestorDefaultView || syncPointHasCompleteView(sp);
+      });
+      let syncPoint = syncTree.syncPointTree_.get(path);
+      if (!syncPoint) {
+          syncPoint = new SyncPoint();
+          syncTree.syncPointTree_ = syncTree.syncPointTree_.set(path, syncPoint);
+      }
+      else {
+          foundAncestorDefaultView =
+              foundAncestorDefaultView || syncPointHasCompleteView(syncPoint);
+          serverCache =
+              serverCache || syncPointGetCompleteServerCache(syncPoint, newEmptyPath());
+      }
+      let serverCacheComplete;
+      if (serverCache != null) {
+          serverCacheComplete = true;
+      }
+      else {
+          serverCacheComplete = false;
+          serverCache = ChildrenNode.EMPTY_NODE;
+          const subtree = syncTree.syncPointTree_.subtree(path);
+          subtree.foreachChild((childName, childSyncPoint) => {
+              const completeCache = syncPointGetCompleteServerCache(childSyncPoint, newEmptyPath());
+              if (completeCache) {
+                  serverCache = serverCache.updateImmediateChild(childName, completeCache);
+              }
+          });
+      }
+      const viewAlreadyExists = syncPointViewExistsForQuery(syncPoint, query);
+      if (!viewAlreadyExists && !query._queryParams.loadsAllData()) {
+          // We need to track a tag for this query
+          const queryKey = syncTreeMakeQueryKey_(query);
+          assert(!syncTree.queryToTagMap.has(queryKey), 'View does not exist, but we have a tag');
+          const tag = syncTreeGetNextQueryTag_();
+          syncTree.queryToTagMap.set(queryKey, tag);
+          syncTree.tagToQueryMap.set(tag, queryKey);
+      }
+      const writesCache = writeTreeChildWrites(syncTree.pendingWriteTree_, path);
+      let events = syncPointAddEventRegistration(syncPoint, query, eventRegistration, writesCache, serverCache, serverCacheComplete);
+      if (!viewAlreadyExists && !foundAncestorDefaultView) {
+          const view = syncPointViewForQuery(syncPoint, query);
+          events = events.concat(syncTreeSetupListener_(syncTree, query, view));
+      }
+      return events;
   }
   /**
    * Returns a complete cache, if we have one, of the data at a particular path. If the location does not have a
@@ -21724,6 +22192,46 @@
       }
       return events;
   }
+  function syncTreeCreateListenerForView_(syncTree, view) {
+      const query = view.query;
+      const tag = syncTreeTagForQuery_(syncTree, query);
+      return {
+          hashFn: () => {
+              const cache = viewGetServerCache(view) || ChildrenNode.EMPTY_NODE;
+              return cache.hash();
+          },
+          onComplete: (status) => {
+              if (status === 'ok') {
+                  if (tag) {
+                      return syncTreeApplyTaggedListenComplete(syncTree, query._path, tag);
+                  }
+                  else {
+                      return syncTreeApplyListenComplete(syncTree, query._path);
+                  }
+              }
+              else {
+                  // If a listen failed, kill all of the listeners here, not just the one that triggered the error.
+                  // Note that this may need to be scoped to just this listener if we change permissions on filtered children
+                  const error = errorForServerCode(status, query);
+                  return syncTreeRemoveEventRegistration(syncTree, query, 
+                  /*eventRegistration*/ null, error);
+              }
+          }
+      };
+  }
+  /**
+   * Return the tag associated with the given query.
+   */
+  function syncTreeTagForQuery_(syncTree, query) {
+      const queryKey = syncTreeMakeQueryKey_(query);
+      return syncTree.queryToTagMap.get(queryKey);
+  }
+  /**
+   * Given a query, computes a "queryKey" suitable for use in our queryToTagMap_.
+   */
+  function syncTreeMakeQueryKey_(query) {
+      return query._path.toString() + '$' + query._queryIdentifier;
+  }
   /**
    * Return the query associated with the given tag, if we have one
    */
@@ -21749,6 +22257,106 @@
       assert(syncPoint, "Missing sync point for query tag that we're tracking");
       const writesCache = writeTreeChildWrites(syncTree.pendingWriteTree_, queryPath);
       return syncPointApplyOperation(syncPoint, operation, writesCache, null);
+  }
+  /**
+   * This collapses multiple unfiltered views into a single view, since we only need a single
+   * listener for them.
+   */
+  function syncTreeCollectDistinctViewsForSubTree_(subtree) {
+      return subtree.fold((relativePath, maybeChildSyncPoint, childMap) => {
+          if (maybeChildSyncPoint && syncPointHasCompleteView(maybeChildSyncPoint)) {
+              const completeView = syncPointGetCompleteView(maybeChildSyncPoint);
+              return [completeView];
+          }
+          else {
+              // No complete view here, flatten any deeper listens into an array
+              let views = [];
+              if (maybeChildSyncPoint) {
+                  views = syncPointGetQueryViews(maybeChildSyncPoint);
+              }
+              each(childMap, (_key, childViews) => {
+                  views = views.concat(childViews);
+              });
+              return views;
+          }
+      });
+  }
+  /**
+   * Normalizes a query to a query we send the server for listening
+   *
+   * @returns The normalized query
+   */
+  function syncTreeQueryForListening_(query) {
+      if (query._queryParams.loadsAllData() && !query._queryParams.isDefault()) {
+          // We treat queries that load all data as default queries
+          // Cast is necessary because ref() technically returns Firebase which is actually fb.api.Firebase which inherits
+          // from Query
+          return new (syncTreeGetReferenceConstructor())(query._repo, query._path);
+      }
+      else {
+          return query;
+      }
+  }
+  function syncTreeRemoveTags_(syncTree, queries) {
+      for (let j = 0; j < queries.length; ++j) {
+          const removedQuery = queries[j];
+          if (!removedQuery._queryParams.loadsAllData()) {
+              // We should have a tag for this
+              const removedQueryKey = syncTreeMakeQueryKey_(removedQuery);
+              const removedQueryTag = syncTree.queryToTagMap.get(removedQueryKey);
+              syncTree.queryToTagMap.delete(removedQueryKey);
+              syncTree.tagToQueryMap.delete(removedQueryTag);
+          }
+      }
+  }
+  /**
+   * Static accessor for query tags.
+   */
+  function syncTreeGetNextQueryTag_() {
+      return syncTreeNextQueryTag_++;
+  }
+  /**
+   * For a given new listen, manage the de-duplication of outstanding subscriptions.
+   *
+   * @returns This method can return events to support synchronous data sources
+   */
+  function syncTreeSetupListener_(syncTree, query, view) {
+      const path = query._path;
+      const tag = syncTreeTagForQuery_(syncTree, query);
+      const listener = syncTreeCreateListenerForView_(syncTree, view);
+      const events = syncTree.listenProvider_.startListening(syncTreeQueryForListening_(query), tag, listener.hashFn, listener.onComplete);
+      const subtree = syncTree.syncPointTree_.subtree(path);
+      // The root of this subtree has our query. We're here because we definitely need to send a listen for that, but we
+      // may need to shadow other listens as well.
+      if (tag) {
+          assert(!syncPointHasCompleteView(subtree.value), "If we're adding a query, it shouldn't be shadowed");
+      }
+      else {
+          // Shadow everything at or below this location, this is a default listener.
+          const queriesToStop = subtree.fold((relativePath, maybeChildSyncPoint, childMap) => {
+              if (!pathIsEmpty(relativePath) &&
+                  maybeChildSyncPoint &&
+                  syncPointHasCompleteView(maybeChildSyncPoint)) {
+                  return [syncPointGetCompleteView(maybeChildSyncPoint).query];
+              }
+              else {
+                  // No default listener here, flatten any deeper queries into an array
+                  let queries = [];
+                  if (maybeChildSyncPoint) {
+                      queries = queries.concat(syncPointGetQueryViews(maybeChildSyncPoint).map(view => view.query));
+                  }
+                  each(childMap, (_key, childQueries) => {
+                      queries = queries.concat(childQueries);
+                  });
+                  return queries;
+              }
+          });
+          for (let i = 0; i < queriesToStop.length; ++i) {
+              const queryToStop = queriesToStop[i];
+              syncTree.listenProvider_.stopListening(syncTreeQueryForListening_(queryToStop), syncTreeTagForQuery_(syncTree, queryToStop));
+          }
+      }
+      return events;
   }
 
   /**
@@ -22111,6 +22719,15 @@
       return isValidPathString(pathString);
   };
   /**
+   * Pre-validate a datum passed as an argument to Firebase function.
+   */
+  const validateFirebaseDataArg = function (fnName, value, path, optional) {
+      if (optional && value === undefined) {
+          return;
+      }
+      validateFirebaseData(errorPrefix(fnName, 'value'), value, path);
+  };
+  /**
    * Validate a data object client-side before sending to server.
    */
   const validateFirebaseData = function (errorPrefix, data, path_) {
@@ -22199,6 +22816,14 @@
           pathString = pathString.replace(/^\/*\.info(\/|$)/, '/');
       }
       validatePathString(fnName, argumentName, pathString, optional);
+  };
+  /**
+   * @internal
+   */
+  const validateWritablePath = function (fnName, path) {
+      if (pathGetFront(path) === '.info') {
+          throw new Error(fnName + " failed = Can't modify data under /.info/");
+      }
   };
   const validateUrl = function (fnName, parsedUrl) {
       // TODO = Validate server better.
@@ -22570,6 +23195,35 @@
           return Promise.reject(new Error(err));
       });
   }
+  function repoSetWithPriority(repo, path, newVal, newPriority, onComplete) {
+      repoLog(repo, 'set', {
+          path: path.toString(),
+          value: newVal,
+          priority: newPriority
+      });
+      // TODO: Optimize this behavior to either (a) store flag to skip resolving where possible and / or
+      // (b) store unresolved paths on JSON parse
+      const serverValues = repoGenerateServerValues(repo);
+      const newNodeUnresolved = nodeFromJSON(newVal, newPriority);
+      const existing = syncTreeCalcCompleteEventCache(repo.serverSyncTree_, path);
+      const newNode = resolveDeferredValueSnapshot(newNodeUnresolved, existing, serverValues);
+      const writeId = repoGetNextWriteId(repo);
+      const events = syncTreeApplyUserOverwrite(repo.serverSyncTree_, path, newNode, writeId, true);
+      eventQueueQueueEvents(repo.eventQueue_, events);
+      repo.server_.put(path.toString(), newNodeUnresolved.val(/*export=*/ true), (status, errorReason) => {
+          const success = status === 'ok';
+          if (!success) {
+              warn('set at ' + path + ' failed: ' + status);
+          }
+          const clearEvents = syncTreeAckUserWrite(repo.serverSyncTree_, writeId, !success);
+          eventQueueRaiseEventsForChangedPath(repo.eventQueue_, path, clearEvents);
+          repoCallOnCompleteCallback(repo, onComplete, status, errorReason);
+      });
+      const affectedPath = repoAbortTransactions(repo, path);
+      repoRerunTransactions(repo, affectedPath);
+      // We queued the events above, so just flush the queue here
+      eventQueueRaiseEventsForChangedPath(repo.eventQueue_, affectedPath, []);
+  }
   /**
    * Applies all of the changes stored up in the onDisconnect_ tree.
    */
@@ -22590,6 +23244,28 @@
       repo.onDisconnect_ = newSparseSnapshotTree();
       eventQueueRaiseEventsForChangedPath(repo.eventQueue_, newEmptyPath(), events);
   }
+  function repoAddEventCallbackForQuery(repo, query, eventRegistration) {
+      let events;
+      if (pathGetFront(query._path) === '.info') {
+          events = syncTreeAddEventRegistration(repo.infoSyncTree_, query, eventRegistration);
+      }
+      else {
+          events = syncTreeAddEventRegistration(repo.serverSyncTree_, query, eventRegistration);
+      }
+      eventQueueRaiseEventsAtPath(repo.eventQueue_, query._path, events);
+  }
+  function repoRemoveEventCallbackForQuery(repo, query, eventRegistration) {
+      // These are guaranteed not to raise events, since we're not passing in a cancelError. However, we can future-proof
+      // a little bit by handling the return values anyways.
+      let events;
+      if (pathGetFront(query._path) === '.info') {
+          events = syncTreeRemoveEventRegistration(repo.infoSyncTree_, query, eventRegistration);
+      }
+      else {
+          events = syncTreeRemoveEventRegistration(repo.serverSyncTree_, query, eventRegistration);
+      }
+      eventQueueRaiseEventsAtPath(repo.eventQueue_, query._path, events);
+  }
   function repoInterrupt(repo) {
       if (repo.persistentConnection_) {
           repo.persistentConnection_.interrupt(INTERRUPT_REASON);
@@ -22601,6 +23277,26 @@
           prefix = repo.persistentConnection_.id + ':';
       }
       log(prefix, ...varArgs);
+  }
+  function repoCallOnCompleteCallback(repo, callback, status, errorReason) {
+      if (callback) {
+          exceptionGuard(() => {
+              if (status === 'ok') {
+                  callback(null);
+              }
+              else {
+                  const code = (status || 'error').toUpperCase();
+                  let message = code;
+                  if (errorReason) {
+                      message += ': ' + errorReason;
+                  }
+                  const error = new Error(message);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  error.code = code;
+                  callback(error);
+              }
+          });
+      }
   }
   /**
    * @param excludeSets - A specific set to exclude
@@ -23123,6 +23819,127 @@
 
   /**
    * @license
+   * Copyright 2017 Google LLC
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *   http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+  /**
+   * Encapsulates the data needed to raise an event
+   */
+  class DataEvent {
+      /**
+       * @param eventType - One of: value, child_added, child_changed, child_moved, child_removed
+       * @param eventRegistration - The function to call to with the event data. User provided
+       * @param snapshot - The data backing the event
+       * @param prevName - Optional, the name of the previous child for child_* events.
+       */
+      constructor(eventType, eventRegistration, snapshot, prevName) {
+          this.eventType = eventType;
+          this.eventRegistration = eventRegistration;
+          this.snapshot = snapshot;
+          this.prevName = prevName;
+      }
+      getPath() {
+          const ref = this.snapshot.ref;
+          if (this.eventType === 'value') {
+              return ref._path;
+          }
+          else {
+              return ref.parent._path;
+          }
+      }
+      getEventType() {
+          return this.eventType;
+      }
+      getEventRunner() {
+          return this.eventRegistration.getEventRunner(this);
+      }
+      toString() {
+          return (this.getPath().toString() +
+              ':' +
+              this.eventType +
+              ':' +
+              stringify(this.snapshot.exportVal()));
+      }
+  }
+  class CancelEvent {
+      constructor(eventRegistration, error, path) {
+          this.eventRegistration = eventRegistration;
+          this.error = error;
+          this.path = path;
+      }
+      getPath() {
+          return this.path;
+      }
+      getEventType() {
+          return 'cancel';
+      }
+      getEventRunner() {
+          return this.eventRegistration.getEventRunner(this);
+      }
+      toString() {
+          return this.path.toString() + ':cancel';
+      }
+  }
+
+  /**
+   * @license
+   * Copyright 2017 Google LLC
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *   http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+  /**
+   * A wrapper class that converts events from the database@exp SDK to the legacy
+   * Database SDK. Events are not converted directly as event registration relies
+   * on reference comparison of the original user callback (see `matches()`) and
+   * relies on equality of the legacy SDK's `context` object.
+   */
+  class CallbackContext {
+      constructor(snapshotCallback, cancelCallback) {
+          this.snapshotCallback = snapshotCallback;
+          this.cancelCallback = cancelCallback;
+      }
+      onValue(expDataSnapshot, previousChildName) {
+          this.snapshotCallback.call(null, expDataSnapshot, previousChildName);
+      }
+      onCancel(error) {
+          assert(this.hasCancelCallback, 'Raising a cancel event on a listener with no cancel callback');
+          return this.cancelCallback.call(null, error);
+      }
+      get hasCancelCallback() {
+          return !!this.cancelCallback;
+      }
+      matches(other) {
+          return (this.snapshotCallback === other.snapshotCallback ||
+              (this.snapshotCallback.userCallback !== undefined &&
+                  this.snapshotCallback.userCallback ===
+                      other.snapshotCallback.userCallback &&
+                  this.snapshotCallback.context === other.snapshotCallback.context));
+      }
+  }
+
+  /**
+   * @license
    * Copyright 2020 Google LLC
    *
    * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23428,6 +24245,110 @@
       return new ReferenceImpl(parent._repo, pathChild(parent._path, path));
   }
   /**
+   * Generates a new child location using a unique key and returns its
+   * `Reference`.
+   *
+   * This is the most common pattern for adding data to a collection of items.
+   *
+   * If you provide a value to `push()`, the value is written to the
+   * generated location. If you don't pass a value, nothing is written to the
+   * database and the child remains empty (but you can use the `Reference`
+   * elsewhere).
+   *
+   * The unique keys generated by `push()` are ordered by the current time, so the
+   * resulting list of items is chronologically sorted. The keys are also
+   * designed to be unguessable (they contain 72 random bits of entropy).
+   *
+   * See {@link https://firebase.google.com/docs/database/web/lists-of-data#append_to_a_list_of_data | Append to a list of data}
+   * </br>See {@link ttps://firebase.googleblog.com/2015/02/the-2120-ways-to-ensure-unique_68.html | The 2^120 Ways to Ensure Unique Identifiers}
+   *
+   * @param parent - The parent location.
+   * @param value - Optional value to be written at the generated location.
+   * @returns Combined `Promise` and `Reference`; resolves when write is complete,
+   * but can be used immediately as the `Reference` to the child location.
+   */
+  function push(parent, value) {
+      parent = getModularInstance(parent);
+      validateWritablePath('push', parent._path);
+      validateFirebaseDataArg('push', value, parent._path, true);
+      const now = repoServerTime(parent._repo);
+      const name = nextPushId(now);
+      // push() returns a ThennableReference whose promise is fulfilled with a
+      // regular Reference. We use child() to create handles to two different
+      // references. The first is turned into a ThennableReference below by adding
+      // then() and catch() methods and is used as the return value of push(). The
+      // second remains a regular Reference and is used as the fulfilled value of
+      // the first ThennableReference.
+      const thennablePushRef = child(parent, name);
+      const pushRef = child(parent, name);
+      let promise;
+      if (value != null) {
+          promise = set(pushRef, value).then(() => pushRef);
+      }
+      else {
+          promise = Promise.resolve(pushRef);
+      }
+      thennablePushRef.then = promise.then.bind(promise);
+      thennablePushRef.catch = promise.then.bind(promise, undefined);
+      return thennablePushRef;
+  }
+  /**
+   * Removes the data at this Database location.
+   *
+   * Any data at child locations will also be deleted.
+   *
+   * The effect of the remove will be visible immediately and the corresponding
+   * event 'value' will be triggered. Synchronization of the remove to the
+   * Firebase servers will also be started, and the returned Promise will resolve
+   * when complete. If provided, the onComplete callback will be called
+   * asynchronously after synchronization has finished.
+   *
+   * @param ref - The location to remove.
+   * @returns Resolves when remove on server is complete.
+   */
+  function remove(ref) {
+      validateWritablePath('remove', ref._path);
+      return set(ref, null);
+  }
+  /**
+   * Writes data to this Database location.
+   *
+   * This will overwrite any data at this location and all child locations.
+   *
+   * The effect of the write will be visible immediately, and the corresponding
+   * events ("value", "child_added", etc.) will be triggered. Synchronization of
+   * the data to the Firebase servers will also be started, and the returned
+   * Promise will resolve when complete. If provided, the `onComplete` callback
+   * will be called asynchronously after synchronization has finished.
+   *
+   * Passing `null` for the new value is equivalent to calling `remove()`; namely,
+   * all data at this location and all child locations will be deleted.
+   *
+   * `set()` will remove any priority stored at this location, so if priority is
+   * meant to be preserved, you need to use `setWithPriority()` instead.
+   *
+   * Note that modifying data with `set()` will cancel any pending transactions
+   * at that location, so extreme care should be taken if mixing `set()` and
+   * `transaction()` to modify the same data.
+   *
+   * A single `set()` will generate a single "value" event at the location where
+   * the `set()` was performed.
+   *
+   * @param ref - The location to write to.
+   * @param value - The value to be written (string, number, boolean, object,
+   *   array, or null).
+   * @returns Resolves when write to server is complete.
+   */
+  function set(ref, value) {
+      ref = getModularInstance(ref);
+      validateWritablePath('set', ref._path);
+      validateFirebaseDataArg('set', value, ref._path, false);
+      const deferred = new Deferred();
+      repoSetWithPriority(ref._repo, ref._path, value, 
+      /*priority=*/ null, deferred.wrapCallback(() => { }));
+      return deferred.promise;
+  }
+  /**
    * Gets the most up-to-date result for this query.
    *
    * @param query - The query to run.
@@ -23440,6 +24361,133 @@
       return repoGetValue(query._repo, query).then(node => {
           return new DataSnapshot(node, new ReferenceImpl(query._repo, query._path), query._queryParams.getIndex());
       });
+  }
+  /**
+   * Represents registration for 'value' events.
+   */
+  class ValueEventRegistration {
+      constructor(callbackContext) {
+          this.callbackContext = callbackContext;
+      }
+      respondsTo(eventType) {
+          return eventType === 'value';
+      }
+      createEvent(change, query) {
+          const index = query._queryParams.getIndex();
+          return new DataEvent('value', this, new DataSnapshot(change.snapshotNode, new ReferenceImpl(query._repo, query._path), index));
+      }
+      getEventRunner(eventData) {
+          if (eventData.getEventType() === 'cancel') {
+              return () => this.callbackContext.onCancel(eventData.error);
+          }
+          else {
+              return () => this.callbackContext.onValue(eventData.snapshot, null);
+          }
+      }
+      createCancelEvent(error, path) {
+          if (this.callbackContext.hasCancelCallback) {
+              return new CancelEvent(this, error, path);
+          }
+          else {
+              return null;
+          }
+      }
+      matches(other) {
+          if (!(other instanceof ValueEventRegistration)) {
+              return false;
+          }
+          else if (!other.callbackContext || !this.callbackContext) {
+              // If no callback specified, we consider it to match any callback.
+              return true;
+          }
+          else {
+              return other.callbackContext.matches(this.callbackContext);
+          }
+      }
+      hasAnyCallback() {
+          return this.callbackContext !== null;
+      }
+  }
+  /**
+   * Represents the registration of a child_x event.
+   */
+  class ChildEventRegistration {
+      constructor(eventType, callbackContext) {
+          this.eventType = eventType;
+          this.callbackContext = callbackContext;
+      }
+      respondsTo(eventType) {
+          let eventToCheck = eventType === 'children_added' ? 'child_added' : eventType;
+          eventToCheck =
+              eventToCheck === 'children_removed' ? 'child_removed' : eventToCheck;
+          return this.eventType === eventToCheck;
+      }
+      createCancelEvent(error, path) {
+          if (this.callbackContext.hasCancelCallback) {
+              return new CancelEvent(this, error, path);
+          }
+          else {
+              return null;
+          }
+      }
+      createEvent(change, query) {
+          assert(change.childName != null, 'Child events should have a childName.');
+          const childRef = child(new ReferenceImpl(query._repo, query._path), change.childName);
+          const index = query._queryParams.getIndex();
+          return new DataEvent(change.type, this, new DataSnapshot(change.snapshotNode, childRef, index), change.prevName);
+      }
+      getEventRunner(eventData) {
+          if (eventData.getEventType() === 'cancel') {
+              return () => this.callbackContext.onCancel(eventData.error);
+          }
+          else {
+              return () => this.callbackContext.onValue(eventData.snapshot, eventData.prevName);
+          }
+      }
+      matches(other) {
+          if (other instanceof ChildEventRegistration) {
+              return (this.eventType === other.eventType &&
+                  (!this.callbackContext ||
+                      !other.callbackContext ||
+                      this.callbackContext.matches(other.callbackContext)));
+          }
+          return false;
+      }
+      hasAnyCallback() {
+          return !!this.callbackContext;
+      }
+  }
+  function addEventListener(query, eventType, callback, cancelCallbackOrListenOptions, options) {
+      let cancelCallback;
+      if (typeof cancelCallbackOrListenOptions === 'object') {
+          cancelCallback = undefined;
+          options = cancelCallbackOrListenOptions;
+      }
+      if (typeof cancelCallbackOrListenOptions === 'function') {
+          cancelCallback = cancelCallbackOrListenOptions;
+      }
+      if (options && options.onlyOnce) {
+          const userCallback = callback;
+          const onceCallback = (dataSnapshot, previousChildName) => {
+              repoRemoveEventCallbackForQuery(query._repo, query, container);
+              userCallback(dataSnapshot, previousChildName);
+          };
+          onceCallback.userCallback = callback.userCallback;
+          onceCallback.context = callback.context;
+          callback = onceCallback;
+      }
+      const callbackContext = new CallbackContext(callback, cancelCallback || undefined);
+      const container = eventType === 'value'
+          ? new ValueEventRegistration(callbackContext)
+          : new ChildEventRegistration(eventType, callbackContext);
+      repoAddEventCallbackForQuery(query._repo, query, container);
+      return () => repoRemoveEventCallbackForQuery(query._repo, query, container);
+  }
+  function onValue(query, callback, cancelCallbackOrListenOptions, options) {
+      return addEventListener(query, 'value', callback, cancelCallbackOrListenOptions, options);
+  }
+  function onChildAdded(query, callback, cancelCallbackOrListenOptions, options) {
+      return addEventListener(query, 'child_added', callback, cancelCallbackOrListenOptions, options);
   }
   /**
    * Define reference constructor in various modules
@@ -24056,8 +25104,425 @@
   }
   customElements.define('client-calendar', ClientCalendar);
 
+  class PeerConnection extends RTCPeerConnection {
+    #hasLocalMedia = false;
+    #signaling = {
+      send: (message) => {
+        this.dispatchEvent(new MessageEvent('message', {
+          data: JSON.stringify(message)
+        }));
+      },
+
+      postMessage(data) {
+        this.onmessage({ data: JSON.parse(data) });
+      },
+
+      onmessage: null
+    };
+
+    /**
+     * @param {RTCConfiguration} config 
+     * @param {boolean} polite
+     */
+    constructor(config, polite) {
+      super(config);
+
+      // Adapt to use WebRTC perfect negotiation sample code verbatim.
+      // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+      const pc = this;
+      const signaling = this.#signaling;
+
+      // - The perfect negotiation logic, separated from the rest of the application ---
+      
+      // keep track of some negotiation state to prevent races and errors
+      let makingOffer = false;
+      let ignoreOffer = false;
+      let isSettingRemoteAnswerPending = false;
+      
+      // send any ice candidates to the other peer
+      pc.onicecandidate = ({candidate}) => signaling.send({candidate});
+      
+      // let the "negotiationneeded" event trigger offer generation
+      pc.onnegotiationneeded = async () => {
+        try {
+          makingOffer = true;
+          await pc.setLocalDescription();
+          signaling.send({description: pc.localDescription});
+        } catch (err) {
+           console.error(err);
+        } finally {
+          makingOffer = false;
+        }
+      };
+      
+      signaling.onmessage = async ({data: {description, candidate}}) => {
+        try {
+          if (description) {
+            // An offer may come in while we are busy processing SRD(answer).
+            // In this case, we will be in "stable" by the time the offer is processed
+            // so it is safe to chain it on our Operations Chain now.
+            const readyForOffer =
+                !makingOffer &&
+                (pc.signalingState == "stable" || isSettingRemoteAnswerPending);
+            const offerCollision = description.type == "offer" && !readyForOffer;
+      
+            ignoreOffer = !polite && offerCollision;
+            if (ignoreOffer) {
+              return;
+            }
+            isSettingRemoteAnswerPending = description.type == "answer";
+            await pc.setRemoteDescription(description); // SRD rolls back as needed
+            isSettingRemoteAnswerPending = false;
+            if (description.type == "offer") {
+              await pc.setLocalDescription();
+              signaling.send({description: pc.localDescription});
+            }
+          } else if (candidate) {
+            try {
+              await pc.addIceCandidate(candidate);
+            } catch (err) {
+              if (!ignoreOffer) throw err; // Suppress ignored offer's candidates
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+    }
+
+    postMessage(data) {
+      this.#signaling.postMessage(data);
+    }
+
+    /**
+     * @param {MediaStream|MediaStreamConstraints} constraintsOrStream 
+     * @returns {Promise<MediaStream>}
+     */
+    async addMediaStream(constraintsOrStream) {
+      if (this.#hasLocalMedia) throw new Error('media already added');
+
+      const mediaStream = constraintsOrStream instanceof MediaStream ?
+        constraintsOrStream :
+        await navigator.mediaDevices.getUserMedia(constraintsOrStream);
+      for (const track of mediaStream.getTracks()) {
+        this.addTrack(track, mediaStream);
+      }
+
+      this.#hasLocalMedia = true;
+      return mediaStream;
+    }
+
+    hasLocalMedia() {
+      return this.#hasLocalMedia;
+    }
+  }
+
+  const TIMEOUT_MILLIS = 60_000;
+
+  const MEDIA_CONSTRAINTS = { audio: true, video: { facingMode: "user" } };
+  const RTC_CONFIG = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+      { urls: "stun:openrelay.metered.ca:80" },
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+    ]
+  };
+
+  class ClientRTC extends s$1 {
+    #ready;
+    #uid;
+    #database;
+    #runOnDisconnect = [];
+
+    // Call state.
+    /** @type {PeerConnection} */ #peerConnection = null;
+    #nonce = null;
+    #timeoutId;
+
+    static properties = {
+      peers: { attribute: null },
+      hideControls: { attribute: 'hide-controls', type: Boolean }
+    }
+
+    constructor() {
+      super();
+      this.#ready = this.#initialize();
+      this.peers = {};
+      this.hideControls = false;
+    }
+
+    async #initialize() {
+      this.#uid = await getFirebaseUid();
+      this.#database = await getFirebaseDatabase();
+
+      // Synchronize peers.
+      const peers = ref(this.#database, `/users/${this.#uid}/peers`);
+      const unsubPeers = onValue(peers, snapshot => {
+        this.peers = snapshot.val();
+      });
+      this.#runOnDisconnect.push(unsubPeers);
+
+      // Listen for signaling messages.
+      const incoming = ref(this.#database, `/users/${this.#uid}/inbox`);
+      const unsubInbox = onChildAdded(incoming, snapshot => {
+        const message = snapshot.val();
+        console.log('incoming', message);
+        if (message.timestamp > Date.now() - TIMEOUT_MILLIS) {
+          this.#handleMessage(message);
+        }
+        remove(snapshot.ref);
+      });
+      this.#runOnDisconnect.push(unsubInbox);
+    }
+
+    async #handleMessage(message) {
+      if (message.nonce) {
+        // Signaling message.
+        if (this.#nonce === null || this.#nonce === message.nonce) {
+          // Create the connection if necessary.
+          if (!this.#peerConnection) {
+            this.#nonce = message.nonce;
+            this.#peerConnection = this.#createPeerConnection(message.src);
+          }
+          this.#peerConnection.postMessage(message.data);
+        }
+      } else {
+        switch (message.type) {
+          case 'caption':
+            const caption = document.createElement('div');
+            caption.textContent = message.data;
+            this.shadowRoot.getElementById('caption-container').prepend(caption);
+            break;
+          case 'peek':
+            // @ts-ignore
+            this.shadowRoot.getElementById('peer-selector').value = message.id;
+            this.#start();
+            break;
+          case 'reload':
+            window.location.reload();
+            break;
+        }
+      }
+    }
+
+    async #start() {
+      if (!this.#peerConnection) {
+        const peerSelector = this.shadowRoot.getElementById('peer-selector');
+        // @ts-ignore
+        this.#peerConnection = this.#createPeerConnection(peerSelector.value);
+      }
+    }
+
+    async #stop() {
+      this.#destroyPeerConnection();
+    }
+
+    #createPeerConnection(dst) {
+      const primary = this.#uid < dst;
+      const peerConnection = new PeerConnection(RTC_CONFIG, primary);
+
+      // Display local and remote video.
+      peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
+        const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('local'));
+        view.srcObject = mediaStream;
+      });
+      peerConnection.addEventListener('track', ({track, streams}) => {
+        const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('remote'));
+        track.addEventListener('unmute', () => {
+          view.srcObject = streams[0];
+        }, { once: true });
+      });
+
+      peerConnection.addEventListener('message', async event => {
+        await this.#ready;
+        const message = {
+          timestamp: Date.now(),
+          nonce: this.#nonce || (this.#nonce = Math.random().toString(36).replace('0.', '')),
+          src: this.#uid,
+          data: event['data']
+        };
+        await push(ref(this.#database, `/users/${dst}/inbox`), message);
+      });
+
+      // Tear down the connection on timeout.
+      const scheduleDisconnect = () => {
+        clearTimeout(this.#timeoutId);
+        this.#timeoutId = setTimeout(() => this.#destroyPeerConnection(), TIMEOUT_MILLIS);
+      };
+      scheduleDisconnect();
+
+      // Send keepalive pings over a data channel to reset the timeout.
+      Promise.resolve().then(async () => {
+        // Create the channel on one side, get notified on the other.
+        const dataChannel = primary ?
+          peerConnection.createDataChannel('keepalive') :
+          await new Promise(resolve => {
+            peerConnection.addEventListener('datachannel', ({channel}) => {
+              if (channel.label === 'keepalive') {
+                resolve(channel);
+              }
+            });
+          });
+        
+        dataChannel.addEventListener('open', () => {
+          // Start pinging.
+          const pingId = setInterval(() => dataChannel.send('ping'), TIMEOUT_MILLIS / 4);
+          dataChannel.addEventListener('close', () => {
+            clearInterval(pingId);
+            this.#destroyPeerConnection();
+          });
+        });
+        dataChannel.addEventListener('message', scheduleDisconnect);
+      });
+
+      return peerConnection;
+    }
+
+    #destroyPeerConnection() {
+      clearTimeout(this.#timeoutId);
+      if (this.#peerConnection) {
+        this.#peerConnection.close();
+        this.#peerConnection = null;
+        this.#nonce = null;
+
+        this.shadowRoot.querySelectorAll('video').forEach(video => {
+          if (video.srcObject instanceof MediaStream) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+          }
+        });
+
+        this.shadowRoot.querySelectorAll('#caption-container *').forEach(element => {
+          element.remove();
+        });
+      }
+    }
+
+    #key(event) {
+      if (event.key === 'Enter') {
+        this.#caption(event.target.value);
+        event.target.value = '';
+      }
+    }
+
+    #caption(s) {
+      if (s) {
+        const message = {
+          timestamp: Date.now(),
+          type: 'caption',
+          data: s
+        };
+
+        // @ts-ignore
+        const dst = this.shadowRoot.getElementById('peer-selector').value;
+        const inbox = ref(this.#database, `/users/${dst}/inbox`);
+        push(inbox, message);
+
+        this.#handleMessage(message);
+      }
+    }
+
+    static get styles() {
+      return r$2`
+      :host {
+        display: flex;
+        width: 100%;
+        height: 100%;
+
+        flex-direction: column;
+        gap: 0.5em;
+      }
+
+      #input {
+        width: 50%;
+      }
+
+      #video-container {
+        display: flex;
+        width: 100%;
+      }
+
+      #remote {
+        width: 50%;
+        transform: scale(-1, 1);
+      }
+
+      #local {
+        width: 0;
+        flex: 0px 1 1;
+      }
+
+      #caption-container {
+        display: flex;
+        flex-direction: column-reverse;
+        width: 100%;
+        overflow: hidden;
+        flex: 0px 1 1;
+
+        font-size: 5vh;
+        color: yellow;
+      }
+
+      .hidden {
+        display: none;
+      }
+    `;
+    }
+
+    render() {
+      return $`
+      <div class="${this.hideControls ? 'hidden' : ''}">
+        <select id="peer-selector">
+          ${c(Object.entries(this.peers), ([uid, email]) => {
+            return $`
+              <option value="${uid}">${email}</option>
+            `
+          })}
+        </select>
+        <button @click=${this.#start}>Call</button>
+        <button @click=${this.#stop}>Stop</button>
+        <input id="input" @keydown=${this.#key}>
+      </div>
+      <div id="video-container">
+        <video id="remote" autoplay></video>
+        <video id="local" autoplay muted></video>
+      </div>
+      <div id="caption-container"></div>
+    `;
+    }
+
+    disconnectedCallback() {
+      for (const fn of this.#runOnDisconnect) {
+        try {
+          fn();
+        } catch (e) {
+        }
+      }
+    }
+  }
+  customElements.define('client-rtc', ClientRTC);
+
   class ClientApp extends s$1 {
     static properties = {
+      isCallActive: { attribute: null },
       timestamp: { attribute: null },
       dateString: { attribute: null },
       timeString: { attribute: null },
@@ -24065,6 +25530,7 @@
 
     constructor() {
       super();
+      this.isCallActive = false;
       this.#updateDateTime();
 
       // Reload page if Google APIs did not initialize properly.
@@ -24107,6 +25573,10 @@
       #container {
         flex: auto 1 1;
       }
+
+      .hidden {
+        display: none;
+      }
     `;
     }
 
@@ -24117,7 +25587,10 @@
         <span>${this.timeString}</span>
       </div>
       <div id="container">
-        <client-calendar .timestamp=${this.timestamp}></client-calendar>
+        <client-rtc class="${this.isCallActive ? '' : 'hidden'}" hide-controls></client-rtc>
+        <client-calendar class="${this.isCallActive ? 'hidden' : ''}"
+          .timestamp=${this.timestamp}>
+        </client-calendar>
       </div>
     `;
     }

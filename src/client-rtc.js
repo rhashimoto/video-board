@@ -55,10 +55,6 @@ class ClientRTC extends LitElement {
     this.#ready = this.#initialize();
     this.peers = {};
     this.hideControls = false;
-
-    this.addEventListener('keydown', event => {
-      console.log(event);
-    });
   }
 
   async #initialize() {
@@ -86,13 +82,32 @@ class ClientRTC extends LitElement {
   }
 
   async #handleMessage(message) {
-    if (this.#nonce === null || this.#nonce === message.nonce) {
-      // Create the connection if necessary.
-      if (!this.#peerConnection) {
-        this.#nonce = message.nonce;
-        this.#peerConnection = this.#createPeerConnection(message.src);
+    if (message.nonce) {
+      // Signaling message.
+      if (this.#nonce === null || this.#nonce === message.nonce) {
+        // Create the connection if necessary.
+        if (!this.#peerConnection) {
+          this.#nonce = message.nonce;
+          this.#peerConnection = this.#createPeerConnection(message.src);
+        }
+        this.#peerConnection.postMessage(message.data);
       }
-      this.#peerConnection.postMessage(message.data);
+    } else {
+      switch (message.type) {
+        case 'caption':
+          const caption = document.createElement('div');
+          caption.textContent = message.data;
+          this.shadowRoot.getElementById('caption-container').prepend(caption);
+          break;
+        case 'peek':
+          // @ts-ignore
+          this.shadowRoot.getElementById('peer-selector').value = message.id;
+          this.#start();
+          break;
+        case 'reload':
+          window.location.reload();
+          break;
+      }
     }
   }
 
@@ -182,6 +197,34 @@ class ClientRTC extends LitElement {
           video.srcObject = null;
         }
       });
+
+      this.shadowRoot.querySelectorAll('#caption-container *').forEach(element => {
+        element.remove();
+      });
+    }
+  }
+
+  #key(event) {
+    if (event.key === 'Enter') {
+      this.#caption(event.target.value);
+      event.target.value = '';
+    }
+  }
+
+  #caption(s) {
+    if (s) {
+      const message = {
+        timestamp: Date.now(),
+        type: 'caption',
+        data: s
+      };
+
+      // @ts-ignore
+      const dst = this.shadowRoot.getElementById('peer-selector').value;
+      const inbox = ref(this.#database, `/users/${dst}/inbox`);
+      push(inbox, message);
+
+      this.#handleMessage(message);
     }
   }
 
@@ -194,6 +237,10 @@ class ClientRTC extends LitElement {
 
         flex-direction: column;
         gap: 0.5em;
+      }
+
+      #input {
+        width: 50%;
       }
 
       #video-container {
@@ -218,7 +265,7 @@ class ClientRTC extends LitElement {
         overflow: hidden;
         flex: 0px 1 1;
 
-        font-size: 4vh;
+        font-size: 5vh;
         color: yellow;
       }
 
@@ -240,6 +287,7 @@ class ClientRTC extends LitElement {
         </select>
         <button @click=${this.#start}>Call</button>
         <button @click=${this.#stop}>Stop</button>
+        <input id="input" @keydown=${this.#key}>
       </div>
       <div id="video-container">
         <video id="remote" autoplay></video>
