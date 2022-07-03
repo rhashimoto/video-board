@@ -18,12 +18,17 @@
       ]
     }
   </script>
+  <style>
+    html, body {
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      background-color: darkslategray;
+    }
+  </style>
 </head>
 <body>
-  <video-board></video-board>
-  <script type="module" src="video-board.js"></script>
-
-  <script defer src="https://apis.google.com/js/api.js" onload="onGAPILoad()"></script>
-  <script defer src="https://accounts.google.com/gsi/client" onload="onGISLoad()"></script>
+  <client-rtc></client-rtc>
+  <script type="module" src="client-rtc.js"></script>
 </body>
 </html>

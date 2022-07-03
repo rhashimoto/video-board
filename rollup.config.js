@@ -76,7 +76,9 @@ export default [{
       {
         path: './src/manifest.json',
         replace: [['/src', '/video-board/dist']]
-      }
+      },
+
+      './src/rtc.html'
     ]),
     nodeResolve()
   ]
@@ -95,5 +97,17 @@ export default [{
       preventAssignment: true,
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production')
     })
+  ]
+}, {
+  input: 'src/client-rtc.js',
+  output: [
+    {
+      file: `${OUT_DIR}/client-rtc.js`,
+      format: "iife",
+      sourcemap: true
+    }
+  ],
+  plugins: [
+    nodeResolve()
   ]
 }];
