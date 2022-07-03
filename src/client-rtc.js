@@ -252,11 +252,11 @@ class ClientRTC extends LitElement {
 
       #remote {
         width: 50%;
-        transform: scale(-1, 1);
       }
 
       #local {
         width: 0;
+        transform: scale(-1, 1);
         flex: 0px 1 1;
       }
 
@@ -267,7 +267,7 @@ class ClientRTC extends LitElement {
         overflow: hidden;
         flex: 0px 1 1;
 
-        font-size: 5vh;
+        font-size: 6vh;
         color: yellow;
       }
 
