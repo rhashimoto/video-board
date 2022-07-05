@@ -23261,7 +23261,7 @@
     }
 
     const TIMEOUT_MILLIS = 60_000;
-
+    const BANDWIDTH_BPS = 250_000;
     const MEDIA_CONSTRAINTS = { audio: true, video: { facingMode: "user" } };
     const RTC_CONFIG = {
       iceServers: [
@@ -23409,6 +23409,16 @@
         const scheduleDisconnect = () => {
           clearTimeout(this.#timeoutId);
           this.#timeoutId = setTimeout(() => this.#destroyPeerConnection(), TIMEOUT_MILLIS);
+
+          for (const sender of peerConnection.getSenders()) {
+            if (sender.track.kind === 'video') {
+              const parameters = sender.getParameters();
+              if (parameters.encodings?.[0] && parameters.encodings[0].maxBitrate !== BANDWIDTH_BPS) {
+                parameters.encodings[0].maxBitrate = BANDWIDTH_BPS;
+                sender.setParameters(parameters);
+              }
+            }
+          }
         };
         scheduleDisconnect();
 
@@ -23461,9 +23471,9 @@
         }
       }
 
-      #addUserMedia() {
+      async #addUserMedia() {
         if (this.#peerConnection && !this.isMediaAdded) {
-          this.#peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
+          await this.#peerConnection.addMediaStream(MEDIA_CONSTRAINTS).then(mediaStream => {
             const view = /** @type {HTMLVideoElement} */(this.shadowRoot.getElementById('local'));
             view.srcObject = mediaStream;
           });
