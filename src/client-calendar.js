@@ -68,16 +68,26 @@ class ClientCalendar extends LitElement {
       new Date(0);
     event.start.epochMillis = startDate.valueOf();
 
-    // Parse description.
+    // Get description string, which may or may not be in an XML wrapper.
+    let description = event.description ?? '';
+    if (event.description?.startsWith('<html-blob>')) {
+      const xml = new DOMParser().parseFromString(event.description, 'text/xml');
+      description = xml.documentElement.textContent;
+    }
+
+    // Description may or may not be JSON.
     try {
-      const description = event.description
-        .replaceAll(/<[^\>]+>/g, '')
-        .replaceAll('&nbsp;', '')
-        .replaceAll('&quot;', '"');
       event.extras = JSON.parse(description);
       if (typeof event.extras !== 'object') throw new Error();
     } catch {
-      event.extras = { text: event.description ?? '' };
+      event.extras = { text: description };
+    }
+
+    // Unescape HTML.
+    if (event.extras.text) {
+      event.extras.text = new DOMParser().parseFromString(event.extras.text, 'text/html')
+        .body
+        .innerHTML;
     }
 
     // Send update to invitees for expired incomplete tasks.
