@@ -51,7 +51,7 @@ class ClientCalendar extends LitElement {
       });
       this.events = new Map(result.items
         .map(item => this.#augmentEvent(item))
-        .filter((item, i) => this.#shouldShowEvent(item, i))
+        .filter((item, i) => this.#shouldShowEvent(item))
         .filter((item, i) => i < 9)
         .map(item => [item.id, item]));
       console.log(this.events);
@@ -105,16 +105,9 @@ class ClientCalendar extends LitElement {
   }
 
   #shouldShowEvent(event, index) {
-    // Show only first of a recurring task unless forceShow is set.
-    if (index === 0) {
-      this._recurringEventIds = new Set();
-    }
-
+    // Show recurring tasks for today only.
     if (event.extras.isTask && event.recurringEventId) {
-      if (this._recurringEventIds.has(event.recurringEventId)) {
-        return event.extras.forceShow;
-      }
-      this._recurringEventIds.add(event.recurringEventId);
+      return this.#getEventDateString(event) === 'Today';
     }
     return true;
   }
