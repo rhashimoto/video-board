@@ -24795,8 +24795,13 @@
   const DAY_MILLIS = 24 * 60 * 60 * 1000;
   const EVENTS_WINDOW_MILLIS = 7 * DAY_MILLIS;
 
-  const servicesReady = getFirebaseApp();
+  const CALENDAR_IDS = [
+    'primary',
+    '35v5vbjh685ugfgnqouk6rlb98@group.calendar.google.com',
+  ];
 
+  const servicesReady = getFirebaseApp();
+   
   class ClientCalendar extends s$1 {
     #fetchId;
     #detailId;
@@ -24821,18 +24826,29 @@
       clearTimeout(this.#fetchId);
       try {
         await servicesReady;
-        const result = await gCall(gapi => {
-          const todayEpoch = new Date(this.timestamp).setHours(0,0,0,0);
+
+        const todayEpoch = new Date(this.timestamp).setHours(0,0,0,0);
+        const results = CALENDAR_IDS.map(calendarId => gCall(gapi => {
           return gapi.client.calendar.events.list({
-            calendarId: 'primary',
+            calendarId,
             maxResults: 30,
             orderBy: 'startTime',
             singleEvents: true,
             timeMin: new Date(todayEpoch).toISOString(),
             timeMax: new Date(todayEpoch + EVENTS_WINDOW_MILLIS).toISOString()
           });
-        });
-        this.events = new Map(result.items
+        }));
+
+        const items = (await Promise.all(results))
+          .map(result => result.items)
+          .flat()
+          .sort((a, b) => {
+            const aEpoch = new Date(a.start.dateTime ?? a.start.date).valueOf();
+            const bEpoch = new Date(b.start.dateTime ?? a.start.date).valueOf();
+            return aEpoch - bEpoch;
+          });
+
+        this.events = new Map(items
           .map(item => this.#augmentEvent(item))
           .filter((item, i) => this.#shouldShowEvent(item))
           .filter((item, i) => i < 9)
