@@ -4,9 +4,31 @@ import { getGAPI } from './gapi.js';
 import './client-calendar.js';
 import './client-rtc.js';
 
+const DAYLIGHT_RANGES = [
+  [[6, 30, 0, 0],[21, 0, 0, 0]],
+];
+
+function isDaylight(date) {
+  for (const [startTime, endTime] of DAYLIGHT_RANGES) {
+    const startDate = new Date(date);
+    // @ts-ignore
+    startDate.setHours(...startTime);
+    
+    const endDate = new Date(date);
+    // @ts-ignore
+    endDate.setHours(...endTime);
+
+    if (date >= startDate && date < endDate) {
+      return true;
+    }
+  }
+  return false;
+}
+
 class ClientApp extends LitElement {
   static properties = {
     isRTCActive: { attribute: null },
+    isDaylight: { attribute: null },
     timestamp: { attribute: null },
     dateString: { attribute: null },
     timeString: { attribute: null },
@@ -15,6 +37,7 @@ class ClientApp extends LitElement {
   constructor() {
     super();
     this.isRTCActive = false;
+    this.isDaylight = true;
     this.#updateDateTime();
 
     // Reload page if Google APIs did not initialize properly.
@@ -45,6 +68,9 @@ class ClientApp extends LitElement {
     this.dateString = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
     this.timeString = date.toLocaleTimeString(undefined, { timeStyle: 'short' });
     setTimeout(() => this.#updateDateTime(), 1000);
+
+    // Set night mode.
+    this.isDaylight = isDaylight(date);
   }
 
   static get styles() {
@@ -69,6 +95,18 @@ class ClientApp extends LitElement {
         flex: auto 1 1;
       }
 
+      .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.75);
+
+        pointer-events: none;
+      }
+
       .hidden {
         display: none;
       }
@@ -87,6 +125,7 @@ class ClientApp extends LitElement {
           .timestamp=${this.timestamp}>
         </client-calendar>
       </div>
+      <div class="overlay ${this.isDaylight ? 'hidden' : ''}"></div>
     `;
   }
 }
