@@ -88,7 +88,7 @@ class ClientApp extends LitElement {
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: 24pt;
+        font-size: 10vh;
       }
 
       #container {
