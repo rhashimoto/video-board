@@ -25020,20 +25020,20 @@
       }
 
       .event-summary {
-        font-size: min(4vh, 24pt);
+        font-size: min(4vh, 21pt);
         font-weight: bold;
         padding-bottom: 0.5em;
       }
 
       .event-desc {
         flex: 1 1 auto;
-        font-size: min(3vh, 18pt);
+        font-size: min(3vh, 17pt);
       }
 
       .event-when {
         display: flex;
         justify-content: space-between;
-        font-size: min(4vh, 24pt);
+        font-size: min(4vh, 21pt);
         padding-top: 0.5em;
       }
 
