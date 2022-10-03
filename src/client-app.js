@@ -88,11 +88,12 @@ class ClientApp extends LitElement {
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: 10vh;
+        font-size: min(10vh, 60pt);
       }
 
       #container {
         flex: auto 1 1;
+        height: 1px;
       }
 
       .overlay {

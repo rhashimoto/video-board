@@ -237,20 +237,20 @@ class ClientCalendar extends LitElement {
       }
 
       .event-summary {
-        font-size: 4vh;
+        font-size: min(4vh, 24pt);
         font-weight: bold;
         padding-bottom: 0.5em;
       }
 
       .event-desc {
         flex: 1 1 auto;
-        font-size: 3vh;
+        font-size: min(3vh, 18pt);
       }
 
       .event-when {
         display: flex;
         justify-content: space-between;
-        font-size: 4vh;
+        font-size: min(4vh, 24pt);
         padding-top: 0.5em;
       }
 
