@@ -24844,7 +24844,7 @@
           .flat()
           .sort((a, b) => {
             const aEpoch = new Date(a.start.dateTime ?? a.start.date).valueOf();
-            const bEpoch = new Date(b.start.dateTime ?? a.start.date).valueOf();
+            const bEpoch = new Date(b.start.dateTime ?? b.start.date).valueOf();
             return aEpoch - bEpoch;
           });
 
@@ -25010,7 +25010,7 @@
         grid-template-rows: repeat(3, 1fr);
         grid-template-columns: repeat(3, 1fr);
         grid-auto-flow: column;
-        gap: 10px;
+        gap: 0.4em;
       }
 
       .event {
@@ -25033,7 +25033,7 @@
       .event-when {
         display: flex;
         justify-content: space-between;
-        font-size: min(4vh, 21pt);
+        font-size: min(4vh, 17pt);
         padding-top: 0.5em;
       }
 
