@@ -25677,7 +25677,7 @@
         z-index: 10;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.75);
+        background-color: rgba(0, 0, 0, 0.90);
 
         pointer-events: none;
       }
