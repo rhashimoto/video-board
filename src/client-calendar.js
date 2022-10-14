@@ -57,13 +57,12 @@ class ClientCalendar extends LitElement {
       }));
 
       const items = (await Promise.all(results))
-        .map(result => result.items)
-        .flat()
-        .sort((a, b) => {
-          const aEpoch = new Date(a.start.dateTime ?? a.start.date).valueOf();
-          const bEpoch = new Date(b.start.dateTime ?? b.start.date).valueOf();
-          return aEpoch - bEpoch;
-        });
+        .flatMap(result => result.items)
+        .map(event => {
+          event.start.epochMillis = this.#getEventEpochMillis(event);
+          return event;
+        })
+        .sort((a, b) => a.start.epochMillis - b.start.epochMillis);
 
       this.events = new Map(items
         .map(item => this.#augmentEvent(item))
@@ -77,13 +76,6 @@ class ClientCalendar extends LitElement {
   }
 
   #augmentEvent(event) {
-    // Calculate start time milliseconds since epoch.
-    const startDate =
-      (event.start.dateTime && new Date(event.start.dateTime)) ||
-      (event.start.date && new Date(event.start.date + 'T00:00')) ||
-      new Date(0);
-    event.start.epochMillis = startDate.valueOf();
-
     // Get description string, which may or may not be in an XML wrapper.
     let description = event.description ?? '';
     if (event.description?.startsWith('<html-blob>')) {
@@ -156,6 +148,14 @@ class ClientCalendar extends LitElement {
   #getEventImminence(event) {
     const dateString = this.#getEventDateString(event).toLowerCase();
     return ['today', 'tomorrow'].includes(dateString) ? dateString : 'future';
+  }
+
+  #getEventEpochMillis(event) {
+    const startDate =
+      (event.start.dateTime && new Date(event.start.dateTime)) ||
+      (event.start.date && new Date(event.start.date + 'T00:00')) ||
+      new Date(0);
+    return startDate.valueOf();
   }
 
   #isEventActiveTask(event) {
