@@ -25662,7 +25662,7 @@
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: min(10vh, 60pt);
+        font-size: min(10vh, 54pt);
       }
 
       #container {
@@ -25677,7 +25677,7 @@
         z-index: 10;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.90);
+        background-color: rgba(0, 0, 0, 0.95);
 
         pointer-events: none;
       }
