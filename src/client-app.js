@@ -5,7 +5,7 @@ import './client-calendar.js';
 import './client-rtc.js';
 
 const DAYLIGHT_RANGES = [
-  [[6, 30, 0, 0],[19, 30, 0, 0]],
+  [[7, 0, 0, 0],[19, 0, 0, 0]],
 ];
 
 function isDaylight(date) {

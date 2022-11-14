@@ -25579,7 +25579,7 @@
   customElements.define('client-rtc', ClientRTC);
 
   const DAYLIGHT_RANGES = [
-    [[6, 30, 0, 0],[21, 0, 0, 0]],
+    [[7, 0, 0, 0],[19, 0, 0, 0]],
   ];
 
   function isDaylight(date) {
