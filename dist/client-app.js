@@ -25656,7 +25656,7 @@
         width: 100%;
         height: 100%;
         color: white;
-        background-color: #2f2f4f;
+        background-color: black;
       }
 
       #bar {
