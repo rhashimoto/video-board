@@ -25639,8 +25639,8 @@
     #updateDateTime() {
       const date = new Date();
       this.timestamp = date.valueOf();
-      this.dateString = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-      this.timeString = date.toLocaleTimeString(undefined, { timeStyle: 'short' });
+      this.dateString = date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      this.timeString = date.toLocaleTimeString(undefined, { timeStyle: 'short' }).toLowerCase();
       setTimeout(() => this.#updateDateTime(), 1000);
 
       // Set night mode.
@@ -25662,7 +25662,7 @@
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: min(10vh, 54pt);
+        font-size: min(13vh, 64pt);
       }
 
       #container {
@@ -25677,7 +25677,7 @@
         z-index: 10;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.95);
+        background-color: rgba(0, 0, 0, 0.98);
 
         pointer-events: none;
       }
