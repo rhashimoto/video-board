@@ -120,7 +120,8 @@ class ClientApp extends LitElement {
         <span>${this.dateString}</span>
         <span>${this.timeString}</span>
       </div>
-      <div id="container">
+      <div id="container"
+        class="${this.isDaylight ? '' : 'hidden'}">
         <client-rtc class="${this.isRTCActive ? '' : 'hidden'}" hide-controls></client-rtc>
         <client-calendar class="${this.isRTCActive ? 'hidden' : ''}"
           .timestamp=${this.timestamp}>
