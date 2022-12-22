@@ -131,7 +131,7 @@ class ClientCalendar extends LitElement {
       default:
         return new Date(startEpoch).toLocaleDateString(undefined, {
           weekday: 'long',
-          month: 'long',
+          month: 'short',
           day: 'numeric'
         });
     }
@@ -237,7 +237,7 @@ class ClientCalendar extends LitElement {
       }
 
       .event-summary {
-        font-size: min(4vh, 21pt);
+        font-size: min(4vh, 24pt);
         font-weight: bold;
         padding-bottom: 0.5em;
       }
@@ -250,7 +250,7 @@ class ClientCalendar extends LitElement {
       .event-when {
         display: flex;
         justify-content: space-between;
-        font-size: min(4vh, 17pt);
+        font-size: min(4vh, 22pt);
         padding-top: 0.5em;
       }
 

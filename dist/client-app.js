@@ -24914,7 +24914,7 @@
         default:
           return new Date(startEpoch).toLocaleDateString(undefined, {
             weekday: 'long',
-            month: 'long',
+            month: 'short',
             day: 'numeric'
           });
       }
@@ -25020,7 +25020,7 @@
       }
 
       .event-summary {
-        font-size: min(4vh, 21pt);
+        font-size: min(4vh, 24pt);
         font-weight: bold;
         padding-bottom: 0.5em;
       }
@@ -25033,7 +25033,7 @@
       .event-when {
         display: flex;
         justify-content: space-between;
-        font-size: min(4vh, 17pt);
+        font-size: min(4vh, 22pt);
         padding-top: 0.5em;
       }
 
@@ -25662,7 +25662,7 @@
       #bar {
         display: flex;
         justify-content: space-between;
-        font-size: min(13vh, 64pt);
+        font-size: min(15vh, 68pt);
       }
 
       #container {
