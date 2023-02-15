@@ -25107,7 +25107,7 @@
           ${c(this.events.values(), event => $`
             <div
               class="event ${this.#getEventImminence(event)} ${this.#isEventActiveTask(event) ? 'blink' : ''}"
-              data-id="${event.id}" @click=${this.#handleEventTap}>
+              data-id="${event.id}">
               <div class="event-summary">${event.summary}</div>
               <div class="event-desc">${o$2(event.extras?.text ?? '')}</div>
               <div class="event-when">
