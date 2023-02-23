@@ -24805,6 +24805,7 @@
   class ClientCalendar extends s$1 {
     #fetchId;
     #detailId;
+    #recurringEvents = new Set();
 
     static properties = {
       timestamp: { attribute: null},
@@ -24847,6 +24848,7 @@
           })
           .sort((a, b) => a.start.epochMillis - b.start.epochMillis);
 
+        this.#recurringEvents.clear();
         this.events = new Map(items
           .map(item => this.#augmentEvent(item))
           .filter((item, i) => this.#shouldShowEvent(item))
@@ -24896,9 +24898,11 @@
     }
 
     #shouldShowEvent(event, index) {
-      // Show recurring tasks for today only.
-      if (event.extras.isTask && event.recurringEventId) {
-        return this.#getEventDateString(event) === 'Today';
+      // Control whether to show multiple instances of a repeating event.
+      if (event.recurringEventId) {
+        const firstTime = !this.#recurringEvents.has(event.recurringEventId);
+        this.#recurringEvents.add(event.recurringEventId);
+        return firstTime || !event.extras.showOne;
       }
       return true;
     }
